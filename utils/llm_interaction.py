@@ -39,9 +39,15 @@ def summarize_page(page_text, previous_summary, page_number):
     else:
         return f"Error: {response.status_code}, {response.text}"
 
-def ask_question(document_data, question):
-    """Answer a question based on the summarized content of the PDF."""
-    combined_content = " ".join([page['text_summary'] for page in document_data["pages"]])
+def ask_question(documents, question):
+    """Answer a question based on the summarized content of multiple PDFs."""
+    combined_content = ""
+    
+    # Iterate through each document's data
+    for doc_name, doc_data in documents.items():
+        combined_content += f"--- Document: {doc_name} ---\n"
+        combined_content += " ".join([page['text_summary'] for page in doc_data["pages"]])
+    
     response = requests.post(
         f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
         headers={
@@ -52,7 +58,7 @@ def ask_question(document_data, question):
             "model": model,
             "messages": [
                 {"role": "system", "content": "You are an assistant that answers questions based on provided knowledge base."},
-                {"role": "user", "content": f"Use the context as knowledge base and answer the question in a proper redable format: {question}\n\Context:\n{combined_content}"}
+                {"role": "user", "content": f"Use the context as knowledge base and answer the question in a proper readable format: {question}\n\nContext:\n{combined_content}"}
             ],
             "temperature": 0.0
         }
