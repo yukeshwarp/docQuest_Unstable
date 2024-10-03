@@ -35,12 +35,10 @@ def process_single_page(page_number, pdf_document, previous_summary):
 def process_pdf_pages(uploaded_file):
     """Process the PDF and extract text/image summaries."""
     pdf_document = fitz.open(stream=io.BytesIO(uploaded_file.read()), filetype="pdf")
-    document_data = {"pages": []}
+    document_data = {"pages": [], "name": uploaded_file.name}  # Include document name
     previous_summary = ""
 
-    # Use ThreadPoolExecutor for parallel processing of pages
     with ThreadPoolExecutor() as executor:
-        # Create future tasks for each page
         future_to_page = {
             executor.submit(process_single_page, page_number, pdf_document, previous_summary): page_number
             for page_number in range(len(pdf_document))
