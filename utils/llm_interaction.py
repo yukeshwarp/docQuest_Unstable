@@ -44,9 +44,10 @@ def ask_question(documents, question):
     combined_content = ""
     
     # Iterate through each document's data
-    for doc_name, doc_data in documents.items():
+    for doc_hash, doc_data in documents.items():
+        doc_name = doc_data["name"]
         combined_content += f"--- Document: {doc_name} ---\n"
-        combined_content += " ".join([page['text_summary'] for page in doc_data["pages"]])
+        combined_content += " ".join([page['text_summary'] for page in doc_data["data"]["pages"]])
     
     response = requests.post(
         f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
