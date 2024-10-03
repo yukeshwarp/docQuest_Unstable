@@ -24,20 +24,24 @@ st.title("docQuest")
 # Sidebar for file upload and document information
 with st.sidebar:
     st.subheader("docQuest")
-    
-    # File uploader
+
+    # Add a session reset button
+    if st.button("Reset Session"):
+        st.session_state.documents.clear()  # Clear the documents without resetting the entire session
+        st.session_state.chat_history.clear()  # Clear the chat history
+        st.success("Session reset successfully!")
+
+    # File uploader for multiple PDFs
     uploaded_files = st.file_uploader("Upload and manage files here", type=["pdf"], accept_multiple_files=True)
 
     if uploaded_files:
         for uploaded_file in uploaded_files:
             # Check if the uploaded file is new or different from the previously uploaded files
             if uploaded_file.name not in st.session_state.documents:
-                st.session_state.documents[uploaded_file.name] = None  # Initialize with None
-
-                # Process the PDF if not already processed
+                # Process the new PDF and add it to the documents
                 with st.spinner(f'Processing {uploaded_file.name}...'):
                     st.session_state.documents[uploaded_file.name] = process_pdf_pages(uploaded_file)
-                st.success(f"{uploaded_file.name} processed successfully! Let's explore your documents.")
+                st.success(f"{uploaded_file.name} processed successfully! Document added to the context.")
 
 # Main page for chat interaction
 if st.session_state.documents:
