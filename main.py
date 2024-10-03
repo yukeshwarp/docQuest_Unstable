@@ -28,16 +28,15 @@ with st.sidebar:
     # File uploader
     uploaded_files = st.file_uploader("Upload and manage files here", type=["pdf"], accept_multiple_files=True)
 
-    if uploaded_files:
-        for uploaded_file in uploaded_files:
-            # Check if the uploaded file is new or different from the previously uploaded files
-            if uploaded_file.name not in st.session_state.documents:
-                st.session_state.documents[uploaded_file.name] = None  # Initialize with None
+    for uploaded_file in uploaded_files:
+        # Check if the uploaded file is new or different from the previously uploaded files
+        if uploaded_file.name not in st.session_state.documents:
+            st.session_state.documents[uploaded_file.name] = None  # Initialize with None
 
-                # Process the PDF if not already processed
-                with st.spinner(f'Processing {uploaded_file.name}...'):
-                    st.session_state.documents[uploaded_file.name] = process_pdf_pages(uploaded_file)
-                st.success(f"{uploaded_file.name} processed successfully! Let's explore your documents.")
+            # Process the PDF if not already processed
+            with st.spinner(f'Processing {uploaded_file.name}...'):
+                st.session_state.documents[uploaded_file.name] = process_pdf_pages(uploaded_file)
+            st.success(f"{uploaded_file.name} processed successfully! Let's explore your documents.")
 
 # Main page for chat interaction
 if st.session_state.documents:
