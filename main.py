@@ -43,6 +43,12 @@ with st.sidebar:
                     st.session_state.documents[uploaded_file.name] = process_pdf_pages(uploaded_file)
                 st.success(f"{uploaded_file.name} processed successfully! Document added to the context.")
 
+    # Show uploaded files in the sidebar
+    if st.session_state.documents:
+        st.subheader("Uploaded Documents:")
+        for doc_name in st.session_state.documents.keys():
+            st.text(f"- {doc_name}")
+
 # Main page for chat interaction
 if st.session_state.documents:
     st.subheader("Let us know more about your documents..")
