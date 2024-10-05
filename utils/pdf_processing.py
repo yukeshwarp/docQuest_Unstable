@@ -3,7 +3,7 @@ import io
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils.ocr_detection import detect_ocr_images_and_vector_graphics
-from utils.llm_interaction import summarize_page
+from utils.llm_interaction import summarize_page, get_image_explanation
 
 # URL of your Azure function endpoint
 azure_function_url = 'https://doc2pdf.azurewebsites.net/api/HttpTrigger1'
@@ -28,7 +28,8 @@ def process_single_page(page_number, pdf_document, previous_summary):
 
     for img_page, base64_image in detected_images:
         if img_page == page_number + 1:
-            image_analysis.append({"page_number": img_page, "image_data": base64_image})
+                image_explanation = get_image_explanation(base64_image)
+                image_analysis.append({"page_number": img_page, "explanation": image_explanation})
 
     return {
         "page_number": page_number + 1,
