@@ -1,7 +1,7 @@
 import fitz  # PyMuPDF
 import base64
 
-def detect_ocr_images_and_vector_graphics(pdf_document, ocr_text_threshold=0.25):
+def detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, ocr_text_threshold=0.1):
     """Detect pages with OCR images or vector graphics."""
     detected_pages = []
 
@@ -18,7 +18,7 @@ def detect_ocr_images_and_vector_graphics(pdf_document, ocr_text_threshold=0.25)
             text_coverage = text_area / page_area
 
             if text_coverage < ocr_text_threshold:
-                pix = page.get_pixmap()
+                pix = page.get_pixmap() 
                 img_data = pix.tobytes("png")
                 base64_image = base64.b64encode(img_data).decode("utf-8")
                 detected_pages.append((page_number + 1, base64_image))
