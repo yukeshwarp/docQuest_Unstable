@@ -2,7 +2,7 @@ import streamlit as st
 from utils.pdf_processing import process_pdf_pages
 from utils.llm_interaction import ask_question
 
-# Initialize session state variables if not already set
+# Initialize session state variables to avoid reloading and reprocessing
 if 'documents' not in st.session_state:
     st.session_state.documents = {}  # Dictionary to hold document name and data
 if 'chat_history' not in st.session_state:
@@ -18,14 +18,6 @@ def handle_question(prompt):
         # Add the question-answer pair to the chat history
         st.session_state.chat_history.append({"question": prompt, "answer": answer})
 
-# Reset the session state
-def reset_session():
-    st.session_state.clear()  # Clear all session state variables
-    # Reinitialize necessary variables
-    st.session_state.documents = {}
-    st.session_state.chat_history = []
-    st.session_state.question_input = ""
-
 # Streamlit application title
 st.title("docQuest")
 
@@ -33,12 +25,8 @@ st.title("docQuest")
 with st.sidebar:
     st.subheader("docQuest")
     
-    # Reset button
-    if st.button("Reset Session"):
-        reset_session()
-
     # File uploader
-    uploaded_files = st.file_uploader("Upload and manage files here", type=["pdf", "pptx"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload and manage files here", type=["pdf"], accept_multiple_files=True)
 
     if uploaded_files:
         for uploaded_file in uploaded_files:
@@ -46,14 +34,10 @@ with st.sidebar:
             if uploaded_file.name not in st.session_state.documents:
                 st.session_state.documents[uploaded_file.name] = None  # Initialize with None
 
-                # Process the file (PPT or PDF)
+                # Process the PDF if not already processed
                 with st.spinner(f'Processing {uploaded_file.name}...'):
-                    try:
-                        # Process the PDF or convert PPT to PDF and process
-                        st.session_state.documents[uploaded_file.name] = process_pdf_pages(uploaded_file)
-                        st.success(f"{uploaded_file.name} processed successfully! Let's explore your documents.")
-                    except Exception as e:
-                        st.error(f"Error processing {uploaded_file.name}: {str(e)}")
+                    st.session_state.documents[uploaded_file.name] = process_pdf_pages(uploaded_file)
+                st.success(f"{uploaded_file.name} processed successfully! Let's explore your documents.")
 
 # Main page for chat interaction
 if st.session_state.documents:
