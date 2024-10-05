@@ -2,7 +2,7 @@ import streamlit as st
 from utils.pdf_processing import process_pdf_pages
 from utils.llm_interaction import ask_question
 
-# Initialize session state variables to avoid reloading and reprocessing
+# Initialize session state variables if not already set
 if 'documents' not in st.session_state:
     st.session_state.documents = {}  # Dictionary to hold document name and data
 if 'chat_history' not in st.session_state:
@@ -21,6 +21,10 @@ def handle_question(prompt):
 # Reset the session state
 def reset_session():
     st.session_state.clear()  # Clear all session state variables
+    # Reinitialize necessary variables
+    st.session_state.documents = {}
+    st.session_state.chat_history = []
+    st.session_state.question_input = ""
 
 # Streamlit application title
 st.title("docQuest")
