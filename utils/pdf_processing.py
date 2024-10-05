@@ -14,27 +14,41 @@ def remove_stopwords_and_blanks(text):
     return cleaned_text
 
 def process_single_page(page_number, pdf_document, previous_summary):
-    """Process a single page of the PDF."""
+    """Process a single page of the PDF.
+
+    Args:
+        page_number (int): The page number to process (0-indexed).
+        pdf_document: The PDF document to process.
+        previous_summary: Previous summary for context.
+
+    Returns:
+        Tuple containing the page processing results and the summary.
+    """
+    # Load the page
     page = pdf_document.load_page(page_number)
+
+    # Detect images or vector graphics
+    base64_image = detect_ocr_images_and_vector_graphics(page)
+
+    if base64_image:  # If an image is detected
+        image_explanation = get_image_explanation(base64_image)  # Get explanation for the image
+        return {
+            "page_number": page_number + 1,
+            "image_analysis": [{"page_number": page_number + 1, "explanation": image_explanation}],
+            "page_image": base64_image
+        }, None  # No text summary needed since we have an image
+
+    # If no image is detected, process the text
     text = page.get_text("text").strip()
     preprocessed_text = remove_stopwords_and_blanks(text)
 
     # Summarize the page text
     summary = summarize_page(preprocessed_text, previous_summary, page_number + 1)
-    
-    # Detect images or vector graphics on the page
-    detected_images = detect_ocr_images_and_vector_graphics(pdf_document, 0.3)
-    image_analysis = []
-
-    for img_page, base64_image in detected_images:
-        if img_page == page_number + 1:
-                image_explanation = get_image_explanation(base64_image)
-                image_analysis.append({"page_number": img_page, "explanation": image_explanation})
 
     return {
         "page_number": page_number + 1,
         "text_summary": summary,
-        "image_analysis": image_analysis
+        "image_analysis": []  # No image analysis needed
     }, summary
 
 def ppt_to_pdf(ppt_file):
