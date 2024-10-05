@@ -1,8 +1,12 @@
 import fitz  # PyMuPDF
 import io
+import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils.ocr_detection import detect_ocr_images_and_vector_graphics
 from utils.llm_interaction import summarize_page
+
+# URL of your Azure function endpoint
+azure_function_url = 'https://doc2pdf.azurewebsites.net/api/HttpTrigger1'
 
 def remove_stopwords_and_blanks(text):
     """Clean the text by removing extra spaces."""
@@ -32,9 +36,30 @@ def process_single_page(page_number, pdf_document, previous_summary):
         "image_analysis": image_analysis
     }, summary
 
+def ppt_to_pdf(ppt_file):
+    """Convert PPT to PDF using Azure Function."""
+    mime_type = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    headers = {
+        "Content-Type": "application/octet-stream",
+        "Content-Type-Actual": mime_type
+    }
+    response = requests.post(azure_function_url, data=ppt_file.read(), headers=headers)
+    if response.status_code == 200:
+        return io.BytesIO(response.content)  # Return PDF as a BytesIO stream
+    else:
+        raise Exception(f"File conversion failed with status code: {response.status_code}, Response: {response.text}")
+
 def process_pdf_pages(uploaded_file):
     """Process the PDF and extract text/image summaries."""
-    pdf_document = fitz.open(stream=io.BytesIO(uploaded_file.read()), filetype="pdf")
+    # Check the file type and process accordingly
+    if uploaded_file.type == 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+        # Convert PPT to PDF
+        pdf_stream = ppt_to_pdf(uploaded_file)
+    else:
+        # Open the PDF directly
+        pdf_stream = io.BytesIO(uploaded_file.read())
+
+    pdf_document = fitz.open(stream=pdf_stream, filetype="pdf")
     
     # Ensure we start with the right structure
     document_data = {"pages": [], "name": uploaded_file.name}  # Include document name
