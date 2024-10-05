@@ -1,25 +1,26 @@
 import fitz  # PyMuPDF
 import base64
-def detect_ocr_images_and_vector_graphics(page):
-    """Detect images or vector graphics on a single page.
 
-    Args:
-        page: The page object to analyze.
+def detect_ocr_images_and_vector_graphics(pdf_document, ocr_text_threshold=0.25):
+    """Detect pages with OCR images or vector graphics."""
+    detected_pages = []
 
-    Returns:
-        Tuple containing page number and base64 image data if an image is detected; otherwise, None.
-    """
-    # Check for images on the page
-    images = page.get_images(full=True)
-    
-    # Check for vector graphics
-    vector_graphics_detected = any(page.get_drawings())
+    for page_number in range(len(pdf_document)):
+        page = pdf_document.load_page(page_number)
+        images = page.get_images(full=True)
+        text = page.get_text("text")
+        text_blocks = page.get_text("blocks")
+        vector_graphics_detected = any(page.get_drawings())
 
-    # If images or vector graphics are detected, generate a base64 image of the page
-    if images or vector_graphics_detected:
-        pix = page.get_pixmap()  # Create a pixmap of the page
-        img_data = pix.tobytes("png")  # Convert pixmap to bytes
-        base64_image = base64.b64encode(img_data).decode("utf-8")  # Convert bytes to base64
-        return base64_image  # Return base64 image data
+        if (images or vector_graphics_detected) and text.strip():
+            page_area = page.rect.width * page.rect.height
+            text_area = sum((block[2] - block[0]) * (block[3] - block[1]) for block in text_blocks)
+            text_coverage = text_area / page_area
 
-    return None  # No images detected
+            if text_coverage < ocr_text_threshold:
+                pix = page.get_pixmap()
+                img_data = pix.tobytes("png")
+                base64_image = base64.b64encode(img_data).decode("utf-8")
+                detected_pages.append((page_number + 1, base64_image))
+
+    return detected_pages
