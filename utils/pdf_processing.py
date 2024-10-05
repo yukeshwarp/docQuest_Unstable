@@ -23,7 +23,7 @@ def process_single_page(page_number, pdf_document, previous_summary):
     summary = summarize_page(preprocessed_text, previous_summary, page_number + 1)
     
     # Detect images or vector graphics on the page
-    detected_images = detect_ocr_images_and_vector_graphics(pdf_document, 0.18)
+    detected_images = detect_ocr_images_and_vector_graphics(pdf_document, 0.3)
     image_analysis = []
 
     for img_page, base64_image in detected_images:
