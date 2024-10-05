@@ -39,6 +39,42 @@ def summarize_page(page_text, previous_summary, page_number):
     else:
         return f"Error: {response.status_code}, {response.text}"
 
+def get_image_explanation(base64_image):
+    """Get image explanation from OpenAI API."""
+    headers = {
+        "Content-Type": "application/json",
+        "api-key": api_key
+    }
+    data = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant that responds in Markdown."},
+            {"role": "user", "content": [
+                {
+                    "type": "text",
+                    "text": "Explain the content of this image in a single, coherent paragraph. The explanation should be concise and semantically meaningful."
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{base64_image}"}
+                }
+            ]}
+        ],
+        "temperature": 0.7
+    }
+
+    response = requests.post(
+        f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
+        headers=headers,
+        json=data
+    )
+    if response.status_code == 200:
+        explanation = response.json()['choices'][0]['message']['content']
+        return explanation
+    else:
+        return f"Error: {response.status_code}, {response.text}"
+
+
 def ask_question(documents, question):
     """Answer a question based on the summarized content of multiple PDFs."""
     combined_content = ""
