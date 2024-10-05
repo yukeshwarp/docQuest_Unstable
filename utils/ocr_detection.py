@@ -1,7 +1,7 @@
 import fitz  # PyMuPDF
 import base64
 
-def detect_ocr_images_and_vector_graphics(pdf_document, ocr_text_threshold=0.3):
+def detect_ocr_images_and_vector_graphics(pdf_document, ocr_text_threshold=0.25):
     """Detect pages with OCR images or vector graphics."""
     detected_pages = []
 
