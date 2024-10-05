@@ -36,7 +36,7 @@ def process_single_page(page_number, pdf_document, previous_summary):
             "page_number": page_number + 1,
             "image_analysis": [{"page_number": page_number + 1, "explanation": image_explanation}],
             "page_image": base64_image
-        }, None  # No text summary needed since we have an image
+        }, previous_summary  # Return previous summary as is
 
     # If no image is detected, process the text
     text = page.get_text("text").strip()
@@ -91,7 +91,8 @@ def process_pdf_pages(uploaded_file):
             page_number = future_to_page[future]
             try:
                 page_data, previous_summary = future.result()
-                document_data["pages"].append(page_data)  # Ensure we append page data correctly
+                if page_data:  # Ensure we append page data correctly if not None
+                    document_data["pages"].append(page_data)  
             except Exception as e:
                 print(f"Error processing page {page_number + 1}: {e}")
 
