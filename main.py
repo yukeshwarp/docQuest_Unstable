@@ -18,6 +18,10 @@ def handle_question(prompt):
         # Add the question-answer pair to the chat history
         st.session_state.chat_history.append({"question": prompt, "answer": answer})
 
+# Reset the session state
+def reset_session():
+    st.session_state.clear()  # Clear all session state variables
+
 # Streamlit application title
 st.title("docQuest")
 
@@ -25,6 +29,10 @@ st.title("docQuest")
 with st.sidebar:
     st.subheader("docQuest")
     
+    # Reset button
+    if st.button("Reset Session"):
+        reset_session()
+
     # File uploader
     uploaded_files = st.file_uploader("Upload and manage files here", type=["pdf"], accept_multiple_files=True)
 
