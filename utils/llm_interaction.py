@@ -82,7 +82,10 @@ def ask_question(documents, question):
     # Iterate through each document's data
     for doc_name, doc_data in documents.items():
         combined_content += f"--- Document: {doc_name} ---\n"
-        combined_content += " ".join([page['text_summary'] for page in doc_data["pages"]])
+        
+        # Safely access text_summary with .get() to prevent KeyError
+        text_summaries = [page.get('text_summary', '') for page in doc_data.get("pages", [])]
+        combined_content += " ".join(text_summaries)
     
     response = requests.post(
         f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
@@ -99,6 +102,9 @@ def ask_question(documents, question):
             "temperature": 0.0
         }
     )
+
+    return handle_api_response(response)
+
 
     if response.status_code == 200:
         return response.json()['choices'][0]['message']['content'].strip()
