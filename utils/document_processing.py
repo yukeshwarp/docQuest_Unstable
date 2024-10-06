@@ -50,22 +50,26 @@ def process_single_page(page_number, pdf_document, previous_summary):
         "image_analysis": image_analysis
     }, summary
 
-def process_pdf_pages(pdf_document):
-    """Process each page and extract image analysis and summaries."""
-    document_data = {"pages": []}
+def process_pdf_pages(uploaded_file):
+    """Process each page of the PDF and extract summaries and image analysis."""
+    # Open the PDF document from the uploaded file stream
+    pdf_stream = io.BytesIO(uploaded_file.read())
+    pdf_document = fitz.open(stream=pdf_stream, filetype="pdf")
+    
+    document_data = {"pages": [], "name": uploaded_file.name}
     previous_summary = ""
 
     for page_number in range(len(pdf_document)):
         page = pdf_document.load_page(page_number)
         text = page.get_text("text").strip()
         preprocessed_text = remove_stopwords_and_blanks(text)
-        
+
         # Summarize the page
         summary = summarize_page(preprocessed_text, previous_summary, page_number + 1)
         previous_summary = summary
-        
+
         # Detect images or graphics on the page
-        detected_images = detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, 0.18)
+        detected_images = detect_ocr_images_and_vector_graphics(pdf_document, 0.18)
         image_analysis = []
 
         for img_page, base64_image in detected_images:
@@ -84,6 +88,7 @@ def process_pdf_pages(pdf_document):
         if (page_number + 1) % 10 == 0:
             previous_summary = summary
 
+    # Close the PDF document after processing
     return document_data
 
 def summarize_page(page_text, previous_summary, page_number):
