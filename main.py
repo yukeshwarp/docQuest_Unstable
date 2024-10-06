@@ -1,7 +1,7 @@
 import streamlit as st
 #from utils.pdf_processing import process_pdf_pages
 #from utils.llm_interaction import ask_question
-from document_processing import process_pdf_pages, ask_question 
+from utils.document_processing import process_pdf_pages, ask_question 
 # Initialize session state variables to avoid reloading and reprocessing
 if 'documents' not in st.session_state:
     st.session_state.documents = {}  # Dictionary to hold document name and data
