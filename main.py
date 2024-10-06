@@ -62,7 +62,7 @@ if st.session_state.documents:
     st.subheader("Let us know more about your documents..")
     
     # Display document data
-    display_documents_data()
+    #display_documents_data()
 
     # Create a placeholder container for chat history
     chat_placeholder = st.empty()
