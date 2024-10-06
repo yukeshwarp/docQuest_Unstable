@@ -156,8 +156,7 @@ def ask_question(documents, question):
     for doc_name, doc_data in documents.items():
         combined_content += f"--- Document: {doc_name} ---\n"
         combined_content += " ".join([page['text_summary'] for page in doc_data["pages"]])
-    
-    azure_endpoint, api_key, api_version, model = get_env_variables()
+
     
     response = requests.post(
         f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
