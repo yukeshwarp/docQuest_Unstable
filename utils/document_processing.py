@@ -4,7 +4,10 @@ import fitz  # PyMuPDF
 import os
 import base64
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
+def remove_stopwords_and_blanks(text):
+    """Clean the text by removing extra spaces."""
+    cleaned_text = ' '.join(word for word in text.split())
+    return cleaned_text
 # Azure Function URL for PPT to PDF conversion
 def detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, ocr_text_threshold=0.1):
     """Detect pages with OCR images or vector graphics."""
