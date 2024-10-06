@@ -1,13 +1,5 @@
 import requests
 import os
-from dotenv import load_dotenv
-
-load_dotenv()  # Load environment variables from the .env file
-
-azure_endpoint = os.getenv("AZURE_ENDPOINT")
-api_key = os.getenv("API_KEY")
-api_version = os.getenv("API_VERSION")
-model = os.getenv("MODEL")
 
 def summarize_page(page_text, previous_summary, page_number):
     """Summarize a single page's text using LLM."""
@@ -16,6 +8,7 @@ def summarize_page(page_text, previous_summary, page_number):
         f"Previous summary: {previous_summary}\n\n"
         f"Text:\n{page_text}\n"
     )
+    azure_endpoint, api_key, api_version, model = get_env_variables()
 
     response = requests.post(
         f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
@@ -37,10 +30,24 @@ def summarize_page(page_text, previous_summary, page_number):
         summary = response.json()['choices'][0]['message']['content'].strip()
         return summary
     else:
-        return f"Error: {response.status_code}, {response.text}"
+        raise Exception(f"Error: {response.status_code}, {response.text}")
+
+def get_env_variables():
+    """Fetch environment variables."""
+    azure_endpoint = os.getenv("AZURE_ENDPOINT")
+    api_key = os.getenv("API_KEY")
+    api_version = os.getenv("API_VERSION")
+    model = os.getenv("MODEL")
+    
+    if not all([azure_endpoint, api_key, api_version, model]):
+        raise EnvironmentError("One or more environment variables are missing.")
+    
+    return azure_endpoint, api_key, api_version, model
 
 def get_image_explanation(base64_image):
     """Get image explanation from OpenAI API."""
+    azure_endpoint, api_key, api_version, model = get_env_variables()
+    
     headers = {
         "Content-Type": "application/json",
         "api-key": api_key
@@ -49,16 +56,8 @@ def get_image_explanation(base64_image):
         "model": model,
         "messages": [
             {"role": "system", "content": "You are a helpful assistant that responds in Markdown."},
-            {"role": "user", "content": [
-                {
-                    "type": "text",
-                    "text": "Explain the content of this image in a single, coherent paragraph. The explanation should be concise and semantically meaningful."
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{base64_image}"}
-                }
-            ]}
+            {"role": "user", "content": f"Explain the content of this image in a single, coherent paragraph. The explanation should be concise and semantically meaningful."},
+            {"role": "user", "content": {"image_url": f"data:image/png;base64,{base64_image}"}}
         ],
         "temperature": 0.7
     }
@@ -68,21 +67,22 @@ def get_image_explanation(base64_image):
         headers=headers,
         json=data
     )
+    
     if response.status_code == 200:
         explanation = response.json()['choices'][0]['message']['content']
         return explanation
     else:
-        return f"Error: {response.status_code}, {response.text}"
-
+        raise Exception(f"Error: {response.status_code}, {response.text}")
 
 def ask_question(documents, question):
     """Answer a question based on the summarized content of multiple PDFs."""
     combined_content = ""
     
-    # Iterate through each document's data
     for doc_name, doc_data in documents.items():
         combined_content += f"--- Document: {doc_name} ---\n"
         combined_content += " ".join([page['text_summary'] for page in doc_data["pages"]])
+    
+    azure_endpoint, api_key, api_version, model = get_env_variables()
     
     response = requests.post(
         f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
@@ -103,4 +103,4 @@ def ask_question(documents, question):
     if response.status_code == 200:
         return response.json()['choices'][0]['message']['content'].strip()
     else:
-        return f"Error: {response.status_code}, {response.text}"
+        raise Exception(f"Error: {response.status_code}, {response.text}")
