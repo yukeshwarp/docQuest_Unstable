@@ -50,31 +50,39 @@ def process_single_page(page_number, pdf_document, previous_summary):
         "image_analysis": image_analysis
     }, summary
 
-def process_pdf_pages(uploaded_file):
-    """Process the PDF and extract text/image summaries."""
-    if uploaded_file.type == 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
-        pdf_stream = ppt_to_pdf(uploaded_file)
-    else:
-        pdf_stream = io.BytesIO(uploaded_file.read())
-
-    pdf_document = fitz.open(stream=pdf_stream, filetype="pdf")
-    
-    document_data = {"pages": [], "name": uploaded_file.name}
+def process_pdf_pages(pdf_document):
+    """Process each page and extract image analysis and summaries."""
+    document_data = {"pages": []}
     previous_summary = ""
 
-    with ThreadPoolExecutor() as executor:
-        future_to_page = {
-            executor.submit(process_single_page, page_number, pdf_document, previous_summary): page_number
-            for page_number in range(len(pdf_document))
-        }
+    for page_number in range(len(pdf_document)):
+        page = pdf_document.load_page(page_number)
+        text = page.get_text("text").strip()
+        preprocessed_text = remove_stopwords_and_blanks(text)
+        
+        # Summarize the page
+        summary = summarize_page(preprocessed_text, previous_summary, page_number + 1)
+        previous_summary = summary
+        
+        # Detect images or graphics on the page
+        detected_images = detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, 0.18)
+        image_analysis = []
 
-        for future in as_completed(future_to_page):
-            page_number = future_to_page[future]
-            try:
-                page_data, previous_summary = future.result()
-                document_data["pages"].append(page_data)
-            except Exception as e:
-                print(f"Error processing page {page_number + 1}: {e}")
+        for img_page, base64_image in detected_images:
+            if img_page == page_number + 1:
+                image_explanation = get_image_explanation(base64_image)
+                image_analysis.append({"page_number": img_page, "explanation": image_explanation})
+
+        # Store the extracted data in JSON format
+        document_data["pages"].append({
+            "page_number": page_number + 1,
+            "text_summary": summary,
+            "image_analysis": image_analysis
+        })
+
+        # Send a reset prompt every 10 pages
+        if (page_number + 1) % 10 == 0:
+            previous_summary = summary
 
     return document_data
 
