@@ -1,7 +1,6 @@
 import streamlit as st
-#from utils.pdf_processing import process_pdf_pages
-#from utils.llm_interaction import ask_question
-from utils.document_processing import process_pdf_pages, ask_question 
+from utils.document_processing import process_pdf_pages, ask_question
+
 # Initialize session state variables to avoid reloading and reprocessing
 if 'documents' not in st.session_state:
     st.session_state.documents = {}  # Dictionary to hold document name and data
@@ -13,10 +12,13 @@ if 'question_input' not in st.session_state:
 # Function to handle user question and get the answer
 def handle_question(prompt):
     if prompt:
-        # Use the cached document data for the query
-        answer = ask_question(st.session_state.documents, prompt)
-        # Add the question-answer pair to the chat history
-        st.session_state.chat_history.append({"question": prompt, "answer": answer})
+        try:
+            # Use the cached document data for the query
+            answer = ask_question(st.session_state.documents, prompt)
+            # Add the question-answer pair to the chat history
+            st.session_state.chat_history.append({"question": prompt, "answer": answer})
+        except Exception as e:
+            st.error(f"Error in processing question: {e}")
 
 # Streamlit application title
 st.title("docQuest")
@@ -35,9 +37,12 @@ with st.sidebar:
                 st.session_state.documents[uploaded_file.name] = None  # Initialize with None
 
                 # Process the PDF if not already processed
-                with st.spinner(f'Processing {uploaded_file.name}...'):
-                    st.session_state.documents[uploaded_file.name] = process_pdf_pages(uploaded_file)
-                st.success(f"{uploaded_file.name} processed successfully! Let's explore your documents.")
+                try:
+                    with st.spinner(f'Processing {uploaded_file.name}...'):
+                        st.session_state.documents[uploaded_file.name] = process_pdf_pages(uploaded_file)
+                    st.success(f"{uploaded_file.name} processed successfully! Let's explore your documents.")
+                except Exception as e:
+                    st.error(f"Error processing {uploaded_file.name}: {e}")
 
 # Main page for chat interaction
 if st.session_state.documents:
