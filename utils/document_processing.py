@@ -4,6 +4,15 @@ import fitz  # PyMuPDF
 import os
 import base64
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dotenv import load_dotenv
+
+load_dotenv()  # Load environment variables from the .env file
+
+azure_endpoint = os.getenv("AZURE_ENDPOINT")
+api_key = os.getenv("API_KEY")
+api_version = os.getenv("API_VERSION")
+model = os.getenv("MODEL")
+
 def remove_stopwords_and_blanks(text):
     """Clean the text by removing extra spaces."""
     cleaned_text = ' '.join(word for word in text.split())
