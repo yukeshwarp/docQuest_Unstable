@@ -3,7 +3,6 @@ import requests
 import fitz  # PyMuPDF
 import os
 import base64
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 
 load_dotenv()  # Load environment variables from the .env file
@@ -17,7 +16,7 @@ def remove_stopwords_and_blanks(text):
     """Clean the text by removing extra spaces."""
     cleaned_text = ' '.join(word for word in text.split())
     return cleaned_text
-# Azure Function URL for PPT to PDF conversion
+
 def detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, ocr_text_threshold=0.1):
     """Detect pages with OCR images or vector graphics."""
     detected_pages = []
@@ -116,6 +115,8 @@ def process_pdf_pages(uploaded_file):
     document_data = {"pages": [], "name": uploaded_file.name}
     previous_summary = ""
 
+    detected_images = detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, 0.18)
+
     for page_number in range(len(pdf_document)):
         page = pdf_document.load_page(page_number)
         text = page.get_text("text").strip()
@@ -126,7 +127,6 @@ def process_pdf_pages(uploaded_file):
         previous_summary = summary
 
         # Detect images or graphics on the page
-        detected_images = detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, 0.18)
         image_analysis = []
 
         for img_page, base64_image in detected_images:
@@ -154,10 +154,19 @@ def ask_question(documents, question):
     combined_content = ""
     
     for doc_name, doc_data in documents.items():
-        combined_content += f"--- Document: {doc_name} ---\n"
-        combined_content += " ".join([page['text_summary'] for page in doc_data["pages"]])
+        for page in doc_data["pages"]:
+            # Combine text summaries and image analysis
+            page_summary = page['text_summary']
+            if page["image_analysis"]:
+                image_explanation = "\n".join(
+                    f"Page {img['page_number']}: {img['explanation']}" for img in page["image_analysis"]
+                )
+            else:
+                image_explanation = "No image analysis."
+            
+            combined_content += f"Page {page['page_number']}\nSummary: {page_summary}\nImage Analysis: {image_explanation}\n\n"
 
-    
+    # Use the combined content for LLM prompt
     response = requests.post(
         f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
         headers={
@@ -168,7 +177,7 @@ def ask_question(documents, question):
             "model": model,
             "messages": [
                 {"role": "system", "content": "You are an assistant that answers questions based on provided knowledge base."},
-                {"role": "user", "content": f"Use the context as knowledge base and answer the question in a proper readable format. The context has the analysis of the uploaded document. The pages with non empty image analysis section has images in it and if the image analysis of any page is empty, then it has no images in it.\nQuestion: {question}\n\nContext:\n{combined_content}"}
+                {"role": "user", "content": f"Use the context as knowledge base and answer the question in a proper readable format. The context has the analysis of the uploaded document. The pages with non-empty image analysis sections contain images, and if the image analysis of any page is empty, then it has no images in it.\n\nQuestion: {question}\n\nContext:\n{combined_content}"}
             ],
             "temperature": 0.0
         }
