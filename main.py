@@ -1,4 +1,5 @@
 import streamlit as st
+import json
 from utils.document_processing import process_pdf_pages, ask_question
 
 # Initialize session state variables to avoid reloading and reprocessing
@@ -56,6 +57,19 @@ with st.sidebar:
                     st.success(f"{uploaded_file.name} processed successfully! Let's explore your documents.")
                 except Exception as e:
                     st.error(f"Error processing {uploaded_file.name}: {e}")
+
+    # Download button for complete analysis
+    if st.session_state.documents:
+        # Convert document data to JSON for download
+        download_data = json.dumps(st.session_state.documents, indent=4)
+        
+        # Add a button to download the document analysis
+        st.download_button(
+            label="Download Analysis",
+            data=download_data,
+            file_name="document_analysis.json",
+            mime="application/json"
+        )
 
 # Main page for chat interaction
 if st.session_state.documents:
