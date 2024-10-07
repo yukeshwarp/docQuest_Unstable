@@ -135,7 +135,7 @@ def summarize_page(page_text, previous_summary, page_number):
         return f"Error: {response.status_code}, {response.text}"
 
 # Example usage in your main application
-def process_file(uploaded_file):
+def process_pdf_pages(uploaded_file):
     file_type = uploaded_file.type
 
     if file_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
