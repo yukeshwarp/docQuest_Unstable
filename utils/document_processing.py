@@ -17,7 +17,7 @@ def remove_stopwords_and_blanks(text):
     cleaned_text = ' '.join(word for word in text.split())
     return cleaned_text
 
-def detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, ocr_text_threshold=0.1):
+def detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, ocr_text_threshold=0.19):
     """Detect pages with OCR images or vector graphics."""
     detected_pages = []
 
@@ -115,7 +115,7 @@ def process_pdf_pages(uploaded_file):
     document_data = {"pages": [], "name": uploaded_file.name}
     previous_summary = ""
 
-    detected_images = detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, 0.18)
+    detected_images = detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, 0.19)
 
     for page_number in range(len(pdf_document)):
         page = pdf_document.load_page(page_number)
