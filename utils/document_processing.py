@@ -2,9 +2,10 @@ import io
 import requests
 import fitz  # PyMuPDF
 import os
-import magic
 import base64
 from dotenv import load_dotenv
+import magic
+import streamlit as st
 
 load_dotenv()  # Load environment variables from the .env file
 
@@ -12,38 +13,6 @@ azure_endpoint = os.getenv("AZURE_ENDPOINT")
 api_key = os.getenv("API_KEY")
 api_version = os.getenv("API_VERSION")
 model = os.getenv("MODEL")
-# URL of your Azure function endpoint  
-azure_function_url = 'https://doc2pdf.azurewebsites.net/api/HttpTrigger1'
-
-# Function to convert PPT to PDF using Azure Function  
-def office_to_pdf(uploaded_file):
-    # Read the uploaded file into memory
-    file_stream = io.BytesIO(uploaded_file.read())
-    
-    # Detect the MIME type of the uploaded file
-    mime = magic.Magic(mime=True)
-    mime_type = mime.from_buffer(file_stream.read(1024))  # Read the first 1024 bytes to detect the MIME type
-    file_stream.seek(0)  # Reset stream position to the beginning
-
-    # Prepare headers for the Azure function
-    headers = {
-        "Content-Type": "application/octet-stream",
-        "Content-Type-Actual": mime_type
-    }
-
-    # Send the binary content of the Office file to Azure Function
-    response = requests.post(azure_function_url, data=file_stream.read(), headers=headers)
-    
-    if response.status_code == 200:
-        # Create a BytesIO stream for the PDF file received from the Azure function
-        pdf_stream = io.BytesIO(response.content)
-        
-        # Return the in-memory PDF stream to the caller
-        return pdf_stream
-    else:
-        print("error")
-        return None
-
 
 def remove_stopwords_and_blanks(text):
     """Clean the text by removing extra spaces."""
@@ -139,8 +108,44 @@ def summarize_page(page_text, previous_summary, page_number):
     else:
         return f"Error: {response.status_code}, {response.text}"
 
-# Example usage in your main application
+# URL of your Azure function endpoint  
+azure_function_url = 'https://doc2pdf.azurewebsites.net/api/HttpTrigger1'
+
+# Function to convert Office files to PDF using Azure Function  
+def office_to_pdf(uploaded_file):
+    # Read the uploaded file into memory
+    file_stream = io.BytesIO(uploaded_file.read())
+    
+    # Detect the MIME type of the uploaded file
+    mime = magic.Magic(mime=True)
+    mime_type = mime.from_buffer(file_stream.read(1024))  # Read the first 1024 bytes to detect the MIME type
+    file_stream.seek(0)  # Reset stream position to the beginning
+
+    # Prepare headers for the Azure function
+    headers = {
+        "Content-Type": "application/octet-stream",
+        "Content-Type-Actual": mime_type
+    }
+
+    # Send the binary content of the Office file to Azure Function
+    response = requests.post(azure_function_url, data=file_stream.read(), headers=headers)
+    
+    if response.status_code == 200:
+        # Create a BytesIO stream for the PDF file received from the Azure function
+        pdf_stream = io.BytesIO(response.content)
+        
+        # Return the in-memory PDF stream to the caller
+        return pdf_stream
+    else:
+        st.error(f"File conversion failed with status code: {response.status_code}")
+        st.error(f"Response: {response.text}")
+        return None
+
+
 def process_pdf_pages(uploaded_file):
+    """Process each page of the PDF and extract summaries and image analysis."""
+    def process_file(uploaded_file):
+    # Get the file type directly from the uploaded file
     file_type = uploaded_file.type
 
     if file_type in [
@@ -148,12 +153,14 @@ def process_pdf_pages(uploaded_file):
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",   # DOCX
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"         # XLSX
     ]:
-        # Handle PPT to PDF conversion
         pdf_stream = office_to_pdf(uploaded_file)
+        if pdf_stream:
+            st.success("Office file successfully converted to PDF!")
+            st.download_button("Download PDF", data=pdf_stream.getvalue(), file_name="converted.pdf", mime="application/pdf")
+        else:
+            st.error("Office to PDF conversion failed.")
     else:
         pdf_stream = io.BytesIO(uploaded_file.read())
-        
-    """Process each page of the PDF and extract summaries and image analysis."""
     # Open the PDF document from the uploaded file stream
     pdf_document = fitz.open(stream=pdf_stream, filetype="pdf")
     
