@@ -3,8 +3,9 @@ import requests
 import fitz  # PyMuPDF
 import os
 import base64
+import ray
 from dotenv import load_dotenv
-
+ray.init()
 load_dotenv()  # Load environment variables from the .env file
 
 azure_endpoint = os.getenv("AZURE_ENDPOINT")
