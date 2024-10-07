@@ -106,48 +106,29 @@ def summarize_page(page_text, previous_summary, page_number):
     else:
         return f"Error: {response.status_code}, {response.text}"
 
-def process_pdf_pages(uploaded_file):
-    """Process each page of the PDF and extract summaries and image analysis."""
-    # Open the PDF document from the uploaded file stream
-    pdf_stream = io.BytesIO(uploaded_file.read())
-    pdf_document = fitz.open(stream=pdf_stream, filetype="pdf")
-    
-    document_data = {"pages": [], "name": uploaded_file.name}
-    previous_summary = ""
+@ray.remote
+def process_single_page(page_number, pdf_document, previous_summary):
+    """Process a single page to extract the text summary and image analysis."""
+    page = pdf_document.load_page(page_number)
+    text = page.get_text("text").strip()
+    preprocessed_text = remove_stopwords_and_blanks(text)
 
-    detected_images = detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, 0.18)
+    # Summarize the page
+    summary = summarize_page(preprocessed_text, previous_summary, page_number + 1)
 
-    for page_number in range(len(pdf_document)):
-        page = pdf_document.load_page(page_number)
-        text = page.get_text("text").strip()
-        preprocessed_text = remove_stopwords_and_blanks(text)
+    # Detect images or graphics on the page
+    base64_image = detect_ocr_images_and_vector_graphics_in_pdf(page)
+    image_analysis = []
 
-        # Summarize the page
-        summary = summarize_page(preprocessed_text, previous_summary, page_number + 1)
-        previous_summary = summary
+    if base64_image:
+        image_explanation = get_image_explanation(base64_image)
+        image_analysis.append({"page_number": page_number + 1, "explanation": image_explanation})
 
-        # Detect images or graphics on the page
-        image_analysis = []
-
-        for img_page, base64_image in detected_images:
-            if img_page == page_number + 1:
-                image_explanation = get_image_explanation(base64_image)
-                image_analysis.append({"page_number": img_page, "explanation": image_explanation})
-
-        # Store the extracted data in JSON format
-        document_data["pages"].append({
-            "page_number": page_number + 1,
-            "text_summary": summary,
-            "image_analysis": image_analysis
-        })
-
-        # Send a reset prompt every 10 pages
-        if (page_number + 1) % 10 == 0:
-            previous_summary = summary
-
-    # Close the PDF document after processing
-    pdf_document.close()
-    return document_data
+    return {
+        "page_number": page_number + 1,
+        "text_summary": summary,
+        "image_analysis": image_analysis
+    }
 
 def ask_question(documents, question):
     """Answer a question based on the summarized content of multiple PDFs."""
