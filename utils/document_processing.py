@@ -130,6 +130,32 @@ def process_single_page(page_number, pdf_document, previous_summary):
         "image_analysis": image_analysis
     }
 
+def process_pdf_pages(uploaded_file):
+    """Process each page of the PDF using Ray for parallelization."""
+    # Open the PDF document from the uploaded file stream
+    pdf_stream = io.BytesIO(uploaded_file.read())
+    pdf_document = fitz.open(stream=pdf_stream, filetype="pdf")
+    
+    document_data = {"pages": [], "name": uploaded_file.name}
+
+    # Create Ray tasks for each page
+    tasks = []
+    previous_summary = ""
+    for page_number in range(len(pdf_document)):
+        task = process_single_page.remote(page_number, pdf_document, previous_summary)
+        tasks.append(task)
+
+    # Gather the results from Ray workers
+    processed_pages = ray.get(tasks)
+
+    # Close the PDF document after processing
+    pdf_document.close()
+
+    # Add all the pages to the document data
+    document_data["pages"] = processed_pages
+
+    return document_data
+
 def ask_question(documents, question):
     """Answer a question based on the summarized content of multiple PDFs."""
     combined_content = ""
@@ -158,7 +184,7 @@ def ask_question(documents, question):
             "model": model,
             "messages": [
                 {"role": "system", "content": "You are an assistant that answers questions based on provided knowledge base."},
-                {"role": "user", "content": f"Use the context as knowledge base and answer the question in a proper readable format. The context has the analysis of the uploaded document. The pages with non-empty image analysis sections contain images, and if the image analysis of any page is empty, then it has no images in it.\n\nQuestion: {question}\n\nContext:\n{combined_content}"}
+                {"role": "user", "content": f"Use the context as knowledge base and answer the question in a proper readable format.\n\nQuestion: {question}\n\nContext:\n{combined_content}"}
             ],
             "temperature": 0.0
         }
