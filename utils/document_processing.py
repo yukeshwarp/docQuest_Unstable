@@ -144,7 +144,6 @@ def office_to_pdf(uploaded_file):
 
 def process_pdf_pages(uploaded_file):
     """Process each page of the PDF and extract summaries and image analysis."""
-    def process_file(uploaded_file):
     # Get the file type directly from the uploaded file
     file_type = uploaded_file.type
 
