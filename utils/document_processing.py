@@ -3,15 +3,42 @@ import requests
 import fitz  # PyMuPDF
 import os
 import base64
-import ray
 from dotenv import load_dotenv
-ray.init()
+
 load_dotenv()  # Load environment variables from the .env file
 
 azure_endpoint = os.getenv("AZURE_ENDPOINT")
 api_key = os.getenv("API_KEY")
 api_version = os.getenv("API_VERSION")
 model = os.getenv("MODEL")
+# URL of your Azure function endpoint  
+azure_function_url = 'https://doc2pdf.azurewebsites.net/api/HttpTrigger1'
+
+# Function to convert PPT to PDF using Azure Function  
+def ppt_to_pdf(uploaded_file):
+    mime_type = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    headers = {
+        "Content-Type": "application/octet-stream",
+        "Content-Type-Actual": mime_type
+    }
+
+    # Using BytesIO to handle the ppt file in memory
+    ppt_stream = io.BytesIO(uploaded_file.read())
+    
+    # Send the binary content of the PPT to Azure Function
+    response = requests.post(azure_function_url, data=ppt_stream.read(), headers=headers)
+    
+    if response.status_code == 200:
+        # Create a BytesIO stream for the PDF file received from the Azure function
+        pdf_stream = io.BytesIO(response.content)
+        
+        # Return the in-memory PDF stream to the caller
+        return pdf_stream
+    else:
+        st.error(f"File conversion failed with status code: {response.status_code}")
+        st.error(f"Response: {response.text}")
+        return None
+
 
 def remove_stopwords_and_blanks(text):
     """Clean the text by removing extra spaces."""
@@ -107,54 +134,55 @@ def summarize_page(page_text, previous_summary, page_number):
     else:
         return f"Error: {response.status_code}, {response.text}"
 
-@ray.remote
-def process_single_page(page_number, pdf_document, previous_summary):
-    """Process a single page to extract the text summary and image analysis."""
-    page = pdf_document.load_page(page_number)
-    text = page.get_text("text").strip()
-    preprocessed_text = remove_stopwords_and_blanks(text)
+# Example usage in your main application
+def process_file(uploaded_file):
+    file_type = uploaded_file.type
 
-    # Summarize the page
-    summary = summarize_page(preprocessed_text, previous_summary, page_number + 1)
-
-    # Detect images or graphics on the page
-    base64_image = detect_ocr_images_and_vector_graphics_in_pdf(page)
-    image_analysis = []
-
-    if base64_image:
-        image_explanation = get_image_explanation(base64_image)
-        image_analysis.append({"page_number": page_number + 1, "explanation": image_explanation})
-
-    return {
-        "page_number": page_number + 1,
-        "text_summary": summary,
-        "image_analysis": image_analysis
-    }
-
-def process_pdf_pages(uploaded_file):
-    """Process each page of the PDF using Ray for parallelization."""
+    if file_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+        # Handle PPT to PDF conversion
+        pdf_stream = ppt_to_pdf(uploaded_file)
+    else:
+        pdf_stream = io.BytesIO(uploaded_file.read())
+        
+    """Process each page of the PDF and extract summaries and image analysis."""
     # Open the PDF document from the uploaded file stream
-    pdf_stream = io.BytesIO(uploaded_file.read())
     pdf_document = fitz.open(stream=pdf_stream, filetype="pdf")
     
     document_data = {"pages": [], "name": uploaded_file.name}
-
-    # Create Ray tasks for each page
-    tasks = []
     previous_summary = ""
-    for page_number in range(len(pdf_document)):
-        task = process_single_page.remote(page_number, pdf_document, previous_summary)
-        tasks.append(task)
 
-    # Gather the results from Ray workers
-    processed_pages = ray.get(tasks)
+    detected_images = detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, 0.18)
+
+    for page_number in range(len(pdf_document)):
+        page = pdf_document.load_page(page_number)
+        text = page.get_text("text").strip()
+        preprocessed_text = remove_stopwords_and_blanks(text)
+
+        # Summarize the page
+        summary = summarize_page(preprocessed_text, previous_summary, page_number + 1)
+        previous_summary = summary
+
+        # Detect images or graphics on the page
+        image_analysis = []
+
+        for img_page, base64_image in detected_images:
+            if img_page == page_number + 1:
+                image_explanation = get_image_explanation(base64_image)
+                image_analysis.append({"page_number": img_page, "explanation": image_explanation})
+
+        # Store the extracted data in JSON format
+        document_data["pages"].append({
+            "page_number": page_number + 1,
+            "text_summary": summary,
+            "image_analysis": image_analysis
+        })
+
+        # Send a reset prompt every 10 pages
+        if (page_number + 1) % 10 == 0:
+            previous_summary = summary
 
     # Close the PDF document after processing
     pdf_document.close()
-
-    # Add all the pages to the document data
-    document_data["pages"] = processed_pages
-
     return document_data
 
 def ask_question(documents, question):
@@ -185,7 +213,7 @@ def ask_question(documents, question):
             "model": model,
             "messages": [
                 {"role": "system", "content": "You are an assistant that answers questions based on provided knowledge base."},
-                {"role": "user", "content": f"Use the context as knowledge base and answer the question in a proper readable format.\n\nQuestion: {question}\n\nContext:\n{combined_content}"}
+                {"role": "user", "content": f"Use the context as knowledge base and answer the question in a proper readable format. The context has the analysis of the uploaded document. The pages with non-empty image analysis sections contain images, and if the image analysis of any page is empty, then it has no images in it.\n\nQuestion: {question}\n\nContext:\n{combined_content}"}
             ],
             "temperature": 0.0
         }
