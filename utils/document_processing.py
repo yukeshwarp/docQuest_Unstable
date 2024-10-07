@@ -41,8 +41,7 @@ def office_to_pdf(uploaded_file):
         # Return the in-memory PDF stream to the caller
         return pdf_stream
     else:
-        st.error(f"File conversion failed with status code: {response.status_code}")
-        st.error(f"Response: {response.text}")
+        print("error")
         return None
 
 
