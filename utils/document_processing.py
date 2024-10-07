@@ -168,7 +168,8 @@ def ask_question(documents, question):
             "model": model,
             "messages": [
                 {"role": "system", "content": "You are an assistant that answers questions based on provided knowledge base."},
-                {"role": "user", "content": f"Use the context as knowledge base and answer the question in a proper readable format: {question}\n\nContext:\n{combined_content}"}
+                {"role": "user", "content": f"Use the context as knowledge base and answer the question in a proper readable format. The context has the analysis of the uploaded document. The pages with non empty image analysis section has images in it and if the image analysis of any page is empty, then it has no images in it.\n
+                Question: {question}\n\nContext:\n{combined_content}"}
             ],
             "temperature": 0.0
         }
