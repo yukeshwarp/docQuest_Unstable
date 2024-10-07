@@ -2,6 +2,7 @@ import io
 import requests
 import fitz  # PyMuPDF
 import os
+import magic
 import base64
 from dotenv import load_dotenv
 
@@ -15,18 +16,23 @@ model = os.getenv("MODEL")
 azure_function_url = 'https://doc2pdf.azurewebsites.net/api/HttpTrigger1'
 
 # Function to convert PPT to PDF using Azure Function  
-def ppt_to_pdf(uploaded_file):
-    mime_type = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+def office_to_pdf(uploaded_file):
+    # Read the uploaded file into memory
+    file_stream = io.BytesIO(uploaded_file.read())
+    
+    # Detect the MIME type of the uploaded file
+    mime = magic.Magic(mime=True)
+    mime_type = mime.from_buffer(file_stream.read(1024))  # Read the first 1024 bytes to detect the MIME type
+    file_stream.seek(0)  # Reset stream position to the beginning
+
+    # Prepare headers for the Azure function
     headers = {
         "Content-Type": "application/octet-stream",
         "Content-Type-Actual": mime_type
     }
 
-    # Using BytesIO to handle the ppt file in memory
-    ppt_stream = io.BytesIO(uploaded_file.read())
-    
-    # Send the binary content of the PPT to Azure Function
-    response = requests.post(azure_function_url, data=ppt_stream.read(), headers=headers)
+    # Send the binary content of the Office file to Azure Function
+    response = requests.post(azure_function_url, data=file_stream.read(), headers=headers)
     
     if response.status_code == 200:
         # Create a BytesIO stream for the PDF file received from the Azure function
@@ -138,9 +144,13 @@ def summarize_page(page_text, previous_summary, page_number):
 def process_pdf_pages(uploaded_file):
     file_type = uploaded_file.type
 
-    if file_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+    if file_type in [
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",  # PPTX
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",   # DOCX
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"         # XLSX
+    ]:
         # Handle PPT to PDF conversion
-        pdf_stream = ppt_to_pdf(uploaded_file)
+        pdf_stream = office_to_pdf(uploaded_file)
     else:
         pdf_stream = io.BytesIO(uploaded_file.read())
         
