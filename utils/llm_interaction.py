@@ -79,19 +79,11 @@ def ask_question(documents, question):
     combined_content = ""
     
     for doc_name, doc_data in documents.items():
-        for page in doc_data["pages"]:
-            # Combine text summaries and image analysis
-            page_summary = page['text_summary']
-            if page["image_analysis"]:
-                image_explanation = "\n".join(
-                    f"Page {img['page_number']}: {img['explanation']}" for img in page["image_analysis"]
-                )
-            else:
-                image_explanation = "No image analysis."
-            
-            combined_content += f"Page {page['page_number']}\nSummary: {page_summary}\nImage Analysis: {image_explanation}\n\n"
-
-    # Use the combined content for LLM prompt
+        combined_content += f"--- Document: {doc_name} ---\n"
+        combined_content += " ".join([page['text_summary'] for page in doc_data["pages"]])
+    
+    azure_endpoint, api_key, api_version, model = get_env_variables()
+    
     response = requests.post(
         f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
         headers={
@@ -102,7 +94,7 @@ def ask_question(documents, question):
             "model": model,
             "messages": [
                 {"role": "system", "content": "You are an assistant that answers questions based on provided knowledge base."},
-                {"role": "user", "content": f"Use the context as knowledge base and answer the question in a proper readable format. The context has the analysis of the uploaded document. The pages with non-empty image analysis sections contain images, and if the image analysis of any page is empty, then it has no images in it.\n\nQuestion: {question}\n\nContext:\n{combined_content}"}
+                {"role": "user", "content": f"Use the context as knowledge base and answer the question in a proper readable format: {question}\n\nContext:\n{combined_content}"}
             ],
             "temperature": 0.0
         }
