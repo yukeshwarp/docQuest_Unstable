@@ -42,7 +42,7 @@ with st.sidebar:
     st.subheader("docQuest")
     
     # File uploader
-    uploaded_files = st.file_uploader("Upload and manage files here", type=["pdf"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload and manage files here", type=["pdf", "pptx"], accept_multiple_files=True)
 
     if uploaded_files:
         for uploaded_file in uploaded_files:
