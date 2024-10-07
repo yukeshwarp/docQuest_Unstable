@@ -17,7 +17,7 @@ def remove_stopwords_and_blanks(text):
     cleaned_text = ' '.join(word for word in text.split())
     return cleaned_text
 
-def detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, ocr_text_threshold=0.4):
+def detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, ocr_text_threshold=0.19):
     """Detect pages with OCR images or vector graphics."""
     detected_pages = []
 
@@ -25,6 +25,7 @@ def detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, ocr_text_threshol
         page = pdf_document.load_page(page_number)
         images = page.get_images(full=True)
         text = page.get_text("text")
+
         text_blocks = page.get_text("blocks")
         vector_graphics_detected = any(page.get_drawings())
         page_area = page.rect.width * page.rect.height
@@ -33,17 +34,12 @@ def detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, ocr_text_threshol
         pix = page.get_pixmap() 
         img_data = pix.tobytes("png")
         base64_image = base64.b64encode(img_data).decode("utf-8")
-
         if text_area==0:
             detected_pages.append((page_number + 1, base64_image))
             
         elif (images or vector_graphics_detected) and text.strip():
-
-
             if text_coverage < ocr_text_threshold:
-
                 detected_pages.append((page_number + 1, base64_image))
-
     return detected_pages
 
 def get_image_explanation(base64_image):
@@ -120,7 +116,7 @@ def process_pdf_pages(uploaded_file):
     document_data = {"pages": [], "name": uploaded_file.name}
     previous_summary = ""
 
-    detected_images = detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, 0.4)
+    detected_images = detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, 0.18)
 
     for page_number in range(len(pdf_document)):
         page = pdf_document.load_page(page_number)
