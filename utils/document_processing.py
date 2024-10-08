@@ -170,8 +170,8 @@ def process_pdf_pages(uploaded_file):
     return document_data
 
 
-def ask_question(documents, question):
-    """Answer a question based on the summarized content of multiple PDFs."""
+def ask_question(documents, question, chat_history):
+    """Answer a question based on the summarized content of multiple PDFs and chat history."""
     combined_content = ""
     
     for doc_name, doc_data in documents.items():
@@ -187,7 +187,21 @@ def ask_question(documents, question):
             
             combined_content += f"Page {page['page_number']}\nSummary: {page_summary}\nImage Analysis: {image_explanation}\n\n"
 
+    # Format the chat history into a conversation format
+    conversation_history = ""
+    for chat in chat_history:
+        user_message = f"User: {chat['question']}\n"
+        assistant_response = f"Assistant: {chat['answer']}\n"
+        conversation_history += user_message + assistant_response
+
     # Use the combined content for LLM prompt
+    prompt_message = (
+        f"Now, using the following document analysis as context, answer the question.\n\n"
+        f"Context:\n{combined_content}\n"
+        f"Question: {question}"
+        f"Previous responses over the current chat session:{conversation_history}\n"
+    )
+
     response = requests.post(
         f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
         headers={
@@ -198,7 +212,7 @@ def ask_question(documents, question):
             "model": model,
             "messages": [
                 {"role": "system", "content": "You are an assistant that answers questions based on provided knowledge base."},
-                {"role": "user", "content": f"Use the context as knowledge base and answer the question in a proper readable format. The context has the analysis of the uploaded document. The pages with non-empty image analysis sections contain images, and if the image analysis of any page is empty, then it has no images in it.\n\nQuestion: {question}\n\nContext:\n{combined_content}"}
+                {"role": "user", "content": prompt_message}
             ],
             "temperature": 0.0
         }
@@ -208,3 +222,4 @@ def ask_question(documents, question):
         return response.json()['choices'][0]['message']['content'].strip()
     else:
         raise Exception(f"Error: {response.status_code}, {response.text}")
+
