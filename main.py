@@ -11,15 +11,17 @@ if 'question_input' not in st.session_state:
     st.session_state.question_input = ""
 
 # Function to handle user question and get the answer
+# Function to handle user question and get the answer
 def handle_question(prompt):
     if prompt:
         try:
-            # Use the cached document data for the query
-            answer = ask_question(st.session_state.documents, prompt)
+            # Use the cached document data and chat history for the query
+            answer = ask_question(st.session_state.documents, prompt, st.session_state.chat_history)
             # Add the question-answer pair to the chat history
             st.session_state.chat_history.append({"question": prompt, "answer": answer})
         except Exception as e:
             st.error(f"Error in processing question: {e}")
+
 
 # Function to display document data
 def display_documents_data():
