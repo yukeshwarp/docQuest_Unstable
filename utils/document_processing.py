@@ -162,13 +162,7 @@ def process_pdf_pages(uploaded_file):
     
     # Check if the file is PPTX, and convert it to PDF if necessary
     if file_name.lower().endswith('.pptx'):
-        st.info(f"Converting {file_name} to PDF...")
-        try:
-            pdf_stream = ppt_to_pdf(uploaded_file)
-            st.success(f"{file_name} successfully converted to PDF!")
-        except Exception as e:
-            st.error(f"Error converting {file_name}: {e}")
-            return None
+        pdf_stream = ppt_to_pdf(uploaded_file)
     else:
         # Open the PDF document from the uploaded file stream directly
         pdf_stream = io.BytesIO(uploaded_file.read())
