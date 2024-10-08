@@ -107,18 +107,14 @@ def summarize_page(page_text, previous_summary, page_number):
     else:
         return f"Error: {response.status_code}, {response.text}"
 
-def process_pdf_pages(uploaded_file):
-    """Process each page of the PDF and extract summaries and image analysis."""
-    # Open the PDF document from the uploaded file stream
-    pdf_stream = io.BytesIO(uploaded_file.read())
-    pdf_document = fitz.open(stream=pdf_stream, filetype="pdf")
-    
-    document_data = {"pages": [], "name": uploaded_file.name}
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+def process_page_batch(pdf_document, batch, ocr_text_threshold=0.4):
+    """Process a batch of PDF pages and extract summaries and image analysis."""
     previous_summary = ""
+    batch_data = []
 
-    detected_images = detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, 0.4)
-
-    for page_number in range(len(pdf_document)):
+    for page_number in batch:
         page = pdf_document.load_page(page_number)
         text = page.get_text("text").strip()
         preprocessed_text = remove_stopwords_and_blanks(text)
@@ -128,6 +124,7 @@ def process_pdf_pages(uploaded_file):
         previous_summary = summary
 
         # Detect images or graphics on the page
+        detected_images = detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, ocr_text_threshold)
         image_analysis = []
 
         for img_page, base64_image in detected_images:
@@ -135,20 +132,43 @@ def process_pdf_pages(uploaded_file):
                 image_explanation = get_image_explanation(base64_image)
                 image_analysis.append({"page_number": img_page, "explanation": image_explanation})
 
-        # Store the extracted data in JSON format
-        document_data["pages"].append({
+        # Store the extracted data
+        batch_data.append({
             "page_number": page_number + 1,
             "text_summary": summary,
             "image_analysis": image_analysis
         })
 
-        # Send a reset prompt every 10 pages
-        if (page_number + 1) % 10 == 0:
-            previous_summary = summary
+    return batch_data
 
+def process_pdf_pages(uploaded_file):
+    """Process the PDF pages in batches and extract summaries and image analysis."""
+    # Open the PDF document from the uploaded file stream
+    pdf_stream = io.BytesIO(uploaded_file.read())
+    pdf_document = fitz.open(stream=pdf_stream, filetype="pdf")
+    
+    document_data = {"pages": [], "name": uploaded_file.name}
+    total_pages = len(pdf_document)
+    
+    # Batch size of 5 pages
+    batch_size = 5
+    page_batches = [range(i, min(i + batch_size, total_pages)) for i in range(0, total_pages, batch_size)]
+    
+    # Use ThreadPoolExecutor to process batches concurrently
+    with ThreadPoolExecutor() as executor:
+        future_to_batch = {executor.submit(process_page_batch, pdf_document, batch): batch for batch in page_batches}
+        for future in as_completed(future_to_batch):
+            batch_data = future.result()  # Get the result of processed batch
+            document_data["pages"].extend(batch_data)
+    
     # Close the PDF document after processing
     pdf_document.close()
+    
+    # Sort pages by page_number to ensure correct order
+    document_data["pages"].sort(key=lambda x: x["page_number"])
+    
     return document_data
+
 
 def ask_question(documents, question):
     """Answer a question based on the summarized content of multiple PDFs."""
