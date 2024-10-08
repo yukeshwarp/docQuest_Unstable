@@ -11,6 +11,7 @@ azure_endpoint = os.getenv("AZURE_ENDPOINT")
 api_key = os.getenv("API_KEY")
 api_version = os.getenv("API_VERSION")
 model = os.getenv("MODEL")
+azure_function_url = 'https://doc2pdf.azurewebsites.net/api/HttpTrigger1'
 
 def remove_stopwords_and_blanks(text):
     """Clean the text by removing extra spaces."""
@@ -34,7 +35,7 @@ def detect_ocr_images_and_vector_graphics_in_pdf(pdf_document, ocr_text_threshol
         pix = page.get_pixmap() 
         img_data = pix.tobytes("png")
         base64_image = base64.b64encode(img_data).decode("utf-8")
-        if text_area==0:
+        if text_area == 0:
             detected_pages.append((page_number + 1, base64_image))
             
         elif (images or vector_graphics_detected) and text.strip():
@@ -141,13 +142,40 @@ def process_page_batch(pdf_document, batch, ocr_text_threshold=0.4):
 
     return batch_data
 
+def ppt_to_pdf(ppt_file):
+    """Convert PPTX to PDF using Azure Function and return the PDF as a BytesIO object."""
+    mime_type = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    headers = {
+        "Content-Type": "application/octet-stream",  
+        "Content-Type-Actual": mime_type
+    }
+    response = requests.post(azure_function_url, data=ppt_file.read(), headers=headers)
+    
+    if response.status_code == 200:
+        return io.BytesIO(response.content)  # Return the PDF content as a BytesIO object
+    else:
+        raise Exception(f"File conversion failed with status code: {response.status_code}, {response.text}")
+
 def process_pdf_pages(uploaded_file):
     """Process the PDF pages in batches and extract summaries and image analysis."""
-    # Open the PDF document from the uploaded file stream
-    pdf_stream = io.BytesIO(uploaded_file.read())
-    pdf_document = fitz.open(stream=pdf_stream, filetype="pdf")
+    file_name = uploaded_file.name
     
-    document_data = {"pages": [], "name": uploaded_file.name}
+    # Check if the file is PPTX, and convert it to PDF if necessary
+    if file_name.lower().endswith('.pptx'):
+        st.info(f"Converting {file_name} to PDF...")
+        try:
+            pdf_stream = ppt_to_pdf(uploaded_file)
+            st.success(f"{file_name} successfully converted to PDF!")
+        except Exception as e:
+            st.error(f"Error converting {file_name}: {e}")
+            return None
+    else:
+        # Open the PDF document from the uploaded file stream directly
+        pdf_stream = io.BytesIO(uploaded_file.read())
+    
+    # Process the PDF document
+    pdf_document = fitz.open(stream=pdf_stream, filetype="pdf")
+    document_data = {"pages": [], "name": file_name}
     total_pages = len(pdf_document)
     
     # Batch size of 5 pages
