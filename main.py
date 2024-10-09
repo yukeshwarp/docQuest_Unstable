@@ -21,6 +21,7 @@ def handle_question(prompt):
                     st.session_state.documents, prompt, st.session_state.chat_history
                 )
             st.session_state.chat_history.append({"question": prompt, "answer": answer})
+            # Display the updated chat history
             display_chat()
         except Exception as e:
             st.error(f"Error processing question: {e}")
@@ -104,13 +105,9 @@ st.subheader("Know more about your documents...", divider="orange")
 if st.session_state.documents:
     st.subheader("Ask me anything about your documents!")
 
-    # Placeholder for chat history
-    chat_placeholder = st.container()
-
-    # Function to display chat history dynamically
+    # Function to display chat history
     def display_chat():
-        with chat_placeholder:
-            st.write("")  # Clear previous chat
+        if st.session_state.chat_history:
             for chat in st.session_state.chat_history:
                 user_message = f"""
                 <div style='padding:10px; border-radius:10px; margin:5px 0; text-align:right;'> {chat['question']}</div>
@@ -120,9 +117,6 @@ if st.session_state.documents:
                 """
                 st.markdown(user_message, unsafe_allow_html=True)
                 st.markdown(assistant_message, unsafe_allow_html=True)
-
-    # Display the chat history
-    display_chat()
 
     # Chat input field using st.chat_input
     prompt = st.chat_input("Ask me anything about your documents", key="chat_input")
