@@ -1,126 +1,111 @@
 import streamlit as st
 import json
-from utils.pdf_processing import process_pdf_pages
-from utils.llm_interaction import ask_question
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from utils.document_processing import process_pdf_pages, ask_question
 
-# Initialize session state variables
+# Initialize session state variables to avoid reloading and reprocessing
 if 'documents' not in st.session_state:
-    st.session_state.documents = {}
+    st.session_state.documents = {}  # Dictionary to hold document name and data
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
-if 'uploaded_files' not in st.session_state:
-    st.session_state.uploaded_files = []
+if 'question_input' not in st.session_state:
+    st.session_state.question_input = ""
 
-# Function to handle user question
+# Function to handle user question and get the answer
+# Function to handle user question and get the answer
 def handle_question(prompt):
     if prompt:
         try:
-            with st.spinner('Thinking...'):
-                answer = ask_question(
-                    st.session_state.documents, prompt, st.session_state.chat_history
-                )
+            # Use the cached document data and chat history for the query
+            answer = ask_question(st.session_state.documents, prompt, st.session_state.chat_history)
+            # Add the question-answer pair to the chat history
             st.session_state.chat_history.append({"question": prompt, "answer": answer})
-            # Display the updated chat history
-            display_chat()
         except Exception as e:
-            st.error(f"Error processing question: {e}")
+            st.error(f"Error in processing question: {e}")
 
-# Function to reset session data when files are changed
-def reset_session():
-    st.session_state.documents = {}
-    st.session_state.chat_history = []
-    st.session_state.uploaded_files = []
+
+# Function to display document data
+def display_documents_data():
+    for doc_name, doc_data in st.session_state.documents.items():
+        st.subheader(f"Document: {doc_name}")
+        for page in doc_data["pages"]:
+            st.write(f"**Page {page['page_number']} Summary:**")
+            st.write(page['text_summary'])
+            if page['image_analysis']:
+                st.write("**Image Analysis:**")
+                for img in page['image_analysis']:
+                    st.write(f"- Page {img['page_number']}: {img['explanation']}")
+            st.markdown("---")  # Separator for pages
+
+# Streamlit application title
+st.title("docQuest")
 
 # Sidebar for file upload and document information
 with st.sidebar:
     st.subheader("docQuest")
-    st.subheader("📄 Upload Your Documents")
-
+    
     # File uploader
-    uploaded_files = st.file_uploader(
-        "Upload files here",
-        type=["pdf", "docx", "xlsx", "pptx"],
-        accept_multiple_files=True,
-        help="Supports PDF, DOCX, XLSX, and PPTX formats.",
-    )
+    uploaded_files = st.file_uploader("Upload and manage files here",type=["pdf", "doc", "dot", "csv", "docx", "dotx", "docm", "dotm","xls", "xlt", "xla", "xlsx", "xltx", "xlsm", "xltm", "xlam", "xlsb","ppt", "pot", "pps", "ppa", "pptx", "potx", "ppsx", "ppam", "pptm","potm", "ppsm", "mdb"],accept_multiple_files=True)
 
-    # Check if the uploaded files have changed
-    uploaded_filenames = [file.name for file in uploaded_files] if uploaded_files else []
-    previous_filenames = st.session_state.uploaded_files
-
-    # Detect removed files and reset session state if needed
-    if set(uploaded_filenames) != set(previous_filenames):
-        reset_session()
-        st.session_state.uploaded_files = uploaded_filenames
 
     if uploaded_files:
-        new_files = []
         for uploaded_file in uploaded_files:
+            # Check if the uploaded file is new or different from the previously uploaded files
             if uploaded_file.name not in st.session_state.documents:
-                new_files.append(uploaded_file)
-            else:
-                st.info(f"{uploaded_file.name} is already uploaded.")
+                st.session_state.documents[uploaded_file.name] = None  # Initialize with None
 
-        if new_files:
-            # Use a placeholder to show progress
-            progress_text = st.empty()
-            progress_bar = st.progress(0)
-            total_files = len(new_files)
+                # Process the PDF if not already processed
+                try:
+                    with st.spinner(f'Processing {uploaded_file.name}...'):
+                        st.session_state.documents[uploaded_file.name] = process_pdf_pages(uploaded_file)
+                    st.success(f"{uploaded_file.name} processed successfully! Let's explore your documents.")
+                except Exception as e:
+                    st.error(f"Error processing {uploaded_file.name}: {e}")
 
-            # Spinner while processing documents
-            with st.spinner("Learning your documents..."):
-                # Process files in pairs using ThreadPoolExecutor
-                with ThreadPoolExecutor(max_workers=2) as executor:
-                    future_to_file = {executor.submit(process_pdf_pages, uploaded_file): uploaded_file for uploaded_file in new_files}
-
-                    for i, future in enumerate(as_completed(future_to_file)):
-                        uploaded_file = future_to_file[future]
-                        try:
-                            # Get the result from the future
-                            document_data = future.result()
-                            st.session_state.documents[uploaded_file.name] = document_data
-                            st.success(f"{uploaded_file.name} processed successfully!")
-                        except Exception as e:
-                            st.error(f"Error processing {uploaded_file.name}: {e}")
-
-                        # Update progress bar
-                        progress_bar.progress((i + 1) / total_files)
-                    
-            progress_text.text("Processing complete.")
-            progress_bar.empty()
-
+    # Download button for complete analysis
     if st.session_state.documents:
+        # Convert document data to JSON for download
         download_data = json.dumps(st.session_state.documents, indent=4)
+        
+        # Add a button to download the document analysis
         st.download_button(
-            label="Download Document Analysis",
+            label="Download Analysis",
             data=download_data,
             file_name="document_analysis.json",
-            mime="application/json",
+            mime="application/json"
         )
 
-# Main Page - Chat Interface
-st.title("docQuest")
-st.subheader("Know more about your documents...", divider="orange")
+# Main page for chat interaction
 if st.session_state.documents:
-    st.subheader("Ask me anything about your documents!")
+    st.subheader("Let us know more about your documents..")
+    
+    # Display document data
+    #display_documents_data()
 
-    # Function to display chat history
+    # Create a placeholder container for chat history
+    chat_placeholder = st.empty()
+
+    # Function to display chat history dynamically
     def display_chat():
-        if st.session_state.chat_history:
-            for chat in st.session_state.chat_history:
-                user_message = f"""
-                <div style='padding:10px; border-radius:10px; margin:5px 0; text-align:right;'> {chat['question']}</div>
-                """
-                assistant_message = f"""
-                <div style='padding:10px; border-radius:10px; margin:5px 0; text-align:left;'> {chat['answer']}</div>
-                """
-                st.markdown(user_message, unsafe_allow_html=True)
-                st.markdown(assistant_message, unsafe_allow_html=True)
+        with chat_placeholder.container():
+            if st.session_state.chat_history:
+                st.subheader("Chats", divider="orange")
+                for chat in st.session_state.chat_history:
+                    # ChatGPT-like alignment: user input on the right, assistant response on the left                
+                    user_chat = f"<div style='float: right; display: inline-block; margin: 5px; border-radius: 8px; padding: 10px; margin-left: 3vw;'> {chat['question']}</div>"
+                    assistant_chat = f"<div style='float: left; display: inline-block; margin: 5px; border-radius: 8px; padding: 10px; margin-right: 3vw;'> {chat['answer']}</div>"                    
+                    st.markdown(f"\n")
+                    st.markdown(user_chat, unsafe_allow_html=True)
+                    st.markdown(assistant_chat, unsafe_allow_html=True)
+                    st.markdown("---")
 
-    # Chat input field using st.chat_input
-    prompt = st.chat_input("Ask me anything about your documents", key="chat_input")
+    # Display the chat history
+    display_chat()
 
+    # Input for user questions using chat input
+    prompt = st.chat_input("Let me know what you want to know about your documents..", key="chat_input")
+    
     # Check if the prompt has been updated
     if prompt:
         handle_question(prompt)  # Call the function to handle the question
+        st.session_state.question_input = ""  # Clear the input field after sending
+        display_chat()  # Re-display the chat after adding the new entry

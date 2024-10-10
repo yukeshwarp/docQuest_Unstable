@@ -3,3 +3,5 @@ PyMuPDF
 requests
 Pillow
 python-dotenv
+ray
+python-magic
