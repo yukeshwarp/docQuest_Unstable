@@ -63,7 +63,18 @@ def summarize_page(page_text, previous_summary, page_number):
     data = {
         "model": model,
         "messages": [
-            {"role": "system", "content": "You are an Archivist who reads the given knowledge and maintains documents, records, or information in a systematic and accurate way."},
+            {"role": "system", "content": f"""
+        You are an Archivist responsible for reading and maintaining documents, records, or information in a systematic and highly accurate manner.
+
+        Your task is to:
+        1. **Carefully analyze** the given content, ensuring you capture the most relevant, factual, and concise information.
+        2. **Record and summarize** the document contents in a clear, structured, and well-organized format.
+        3. **Ensure accuracy** in all the details you extract, avoiding assumptions, speculative information, or any hallucination.
+        4. **Maintain references** to document names, sections, and page numbers for easy retrieval of information.
+        5. **Prioritize clarity and brevity**, while ensuring that no key information is omitted from the summary.
+
+        If any part of the document is unclear or incomplete, clearly indicate this in the records.
+    """},
             {"role": "user", "content": prompt_message}
         ],
         "temperature": 0.0
@@ -112,18 +123,23 @@ def ask_question(documents, question, chat_history):
     # Prepare the prompt message
     prompt_message = (
         f"""
-        You are given the following content:
+    You are given the following content:
 
-        ---
-        {combined_content}
-        ---
-        Previous responses over the current chat session: {conversation_history}
+    ---
+    {combined_content}
+    ---
+    Previous responses over the current chat session: {conversation_history}
 
-        Answer the following question based only on the information provided in the content above with all the factual data. 
-        Answer the question in a proper readable format."
+    Answer the following question based **strictly and only** on the factual information provided in the content above. 
+    Carefully verify all details from the content and do not generate any information that is not explicitly mentioned in it.
+    If the answer cannot be determined from the content, explicitly state that the information is not available.
 
-        Question: {question}
-        """
+    **Ensure the response is accurate, concise, and clearly formatted for readability.**
+    
+    At the end of the response, include references to the document name and page number(s) where the information was found.
+
+    Question: {question}
+    """
     )
 
     headers = get_headers()
