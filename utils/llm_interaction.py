@@ -120,8 +120,7 @@ def ask_question(documents, question, chat_history):
         Previous responses over the current chat session: {conversation_history}
 
         Answer the following question based only on the information provided in the content above with all the factual data. 
-        Answer the question in a proper readable format.
-        If the information is not present or insufficient to answer the question accurately, respond with "Your document doesn't seem to have information regarding that."
+        Answer the question in a proper readable format."
 
         Question: {question}
         """
