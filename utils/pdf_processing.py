@@ -122,7 +122,7 @@ def process_pdf_pages(uploaded_file):
 
         # Sort pages by page_number to ensure correct order
         document_data["pages"].sort(key=lambda x: x["page_number"])
-        return document_data, system_prompt
+        return document_data
 
     except Exception as e:
         logging.error(f"Error processing PDF file {file_name}: {e}")
