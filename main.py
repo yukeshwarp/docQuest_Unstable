@@ -3,6 +3,8 @@ import json
 from utils.pdf_processing import process_pdf_pages
 from utils.llm_interaction import ask_question
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import logging
+import io
 
 # Initialize session state variables
 if 'documents' not in st.session_state:
@@ -34,12 +36,10 @@ def reset_session():
 
 # Sidebar for file upload and document information
 with st.sidebar:
-    st.subheader("docQuest")
-    st.subheader("📄 Upload Your Documents")
 
     # File uploader
     uploaded_files = st.file_uploader(
-        "Upload files here",
+        "",
         type=["pdf", "docx", "xlsx", "pptx"],
         accept_multiple_files=True,
         help="Supports PDF, DOCX, XLSX, and PPTX formats.",
@@ -78,8 +78,13 @@ with st.sidebar:
                         uploaded_file = future_to_file[future]
                         try:
                             # Get the result from the future
-                            document_data = future.result()
+                            document_data, system_prompt = future.result()  # Unpack document data and system prompt
                             st.session_state.documents[uploaded_file.name] = document_data
+
+                            # Display system prompt in the UI
+                            st.write(f"System Prompt for **{uploaded_file.name}**:")
+                            #st.code(system_prompt, language='markdown')
+
                             st.success(f"{uploaded_file.name} processed successfully!")
                         except Exception as e:
                             st.error(f"Error processing {uploaded_file.name}: {e}")
@@ -101,9 +106,8 @@ with st.sidebar:
 
 # Main Page - Chat Interface
 st.title("docQuest")
-st.subheader("Know more about your documents...", divider="orange")
+st.subheader("Unveil the Essence, Compare Easily, Analyze Smartly", divider="orange")
 if st.session_state.documents:
-    st.subheader("Ask me anything about your documents!")
 
     # Function to display chat history
     def display_chat():
@@ -124,4 +128,3 @@ if st.session_state.documents:
     # Check if the prompt has been updated
     if prompt:
         handle_question(prompt)  # Call the function to handle the question
-
