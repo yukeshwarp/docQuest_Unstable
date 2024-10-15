@@ -1,7 +1,7 @@
 import fitz
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils.file_conversion import convert_office_to_pdf
-from utils.llm_interaction import summarize_page, get_image_explanation
+from utils.llm_interaction import summarize_page, get_image_explanation, generate_system_prompt
 import io
 import base64
 import logging
@@ -38,7 +38,7 @@ def detect_ocr_images_and_vector_graphics_in_pdf(page, ocr_text_threshold=0.4):
     
     return None
 
-def process_page_batch(pdf_document, batch, ocr_text_threshold=0.4):
+def process_page_batch(pdf_document, batch, system_prompt, ocr_text_threshold=0.4):
     """Process a batch of PDF pages and extract summaries, full text, and image analysis."""
     previous_summary = ""
     batch_data = []
@@ -50,7 +50,7 @@ def process_page_batch(pdf_document, batch, ocr_text_threshold=0.4):
             preprocessed_text = remove_stopwords_and_blanks(text)
 
             # Summarize the page
-            summary = summarize_page(preprocessed_text, previous_summary, page_number + 1)
+            summary = summarize_page(preprocessed_text, previous_summary, page_number + 1, system_prompt)
             previous_summary = summary
 
             # Detect images or vector graphics
@@ -96,14 +96,20 @@ def process_pdf_pages(uploaded_file):
         pdf_document = fitz.open(stream=pdf_stream, filetype="pdf")
         document_data = {"document_name": file_name, "pages": []}  # Add document_name at the top
         total_pages = len(pdf_document)
+        full_textr = ""
+        for page_numberr in range(total_pages):
+            pager = pdf_document.load_page(page_numberr)
+            full_textr += pager.get_text("text").strip() + " "  # Concatenate all text
 
+        # Generate system prompt from full text
+        system_prompt =  generate_system_prompt(full_textr)
         # Batch size of 5 pages
         batch_size = 5
         page_batches = [range(i, min(i + batch_size, total_pages)) for i in range(0, total_pages, batch_size)]
-
+        
         # Use ThreadPoolExecutor to process batches concurrently
         with ThreadPoolExecutor() as executor:
-            future_to_batch = {executor.submit(process_page_batch, pdf_document, batch): batch for batch in page_batches}
+            future_to_batch = {executor.submit(process_page_batch, pdf_document, batch, system_prompt): batch for batch in page_batches}
             for future in as_completed(future_to_batch):
                 try:
                     batch_data = future.result()  # Get the result of processed batch
@@ -116,9 +122,8 @@ def process_pdf_pages(uploaded_file):
 
         # Sort pages by page_number to ensure correct order
         document_data["pages"].sort(key=lambda x: x["page_number"])
-        return document_data
+        return document_data, system_prompt
 
     except Exception as e:
         logging.error(f"Error processing PDF file {file_name}: {e}")
         raise ValueError(f"Unable to process the file {file_name}. Error: {e}")
-
