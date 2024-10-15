@@ -17,7 +17,7 @@ def get_headers():
 import time
 import requests
 
-def get_image_explanation(base64_image, retries=3, initial_delay=2):
+def get_image_explanation(base64_image, retries=5, initial_delay=2):
     """Get image explanation from OpenAI API with exponential backoff."""
     headers = get_headers()
     data = {
@@ -43,7 +43,7 @@ def get_image_explanation(base64_image, retries=3, initial_delay=2):
     # Exponential backoff retry mechanism
     for attempt in range(retries):
         try:
-            response = requests.post(url, headers=headers, json=data, timeout=50)  # Adjusted timeout
+            response = requests.post(url, headers=headers, json=data, timeout=30)  # Adjusted timeout
             response.raise_for_status()  # Raise HTTPError for bad responses
             return response.json().get('choices', [{}])[0].get('message', {}).get('content', "No explanation provided.")
         
