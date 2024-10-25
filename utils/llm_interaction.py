@@ -1,27 +1,44 @@
-import os
-from dotenv import load_dotenv
 import requests
 from utils.config import azure_endpoint, api_key, api_version, model
 import logging
 import time
-import requests
 import random
+import re
+import nltk
+from nltk.corpus import stopwords
+import tiktoken
+import concurrent.futures
 
-# Set up logging
 logging.basicConfig(level=logging.ERROR, format="%(asctime)s [%(levelname)s] %(message)s")
+nltk.download('stopwords', quiet=True)
 
-def get_headers():
-    """Generate common headers for the API requests."""
-    return {
+HEADERS = {
         "Content-Type": "application/json",
         "api-key": api_key
     }
 
+def count_tokens(text, model="gpt-4o"):
+    """Count the tokens in a given text."""
+    encoding = tiktoken.encoding_for_model(model)
+    tokens = encoding.encode(text)
+    return len(tokens)
+
+
+
+
+def preprocess_text(text):
+    text = text.lower()
+    text = re.sub(r'[^\w\s]', '', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    stop_words = set(stopwords.words('english'))
+    text = ' '.join([word for word in text.split() if word not in stop_words])
+
+    return text
+
 
 
 def get_image_explanation(base64_image, retries=5, initial_delay=2):
-    """Get image explanation from OpenAI API with exponential backoff."""
-    headers = get_headers()
+    headers = HEADERS
     data = {
         "model": model,
         "messages": [
@@ -42,16 +59,16 @@ def get_image_explanation(base64_image, retries=5, initial_delay=2):
 
     url = f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}"
 
-    # Exponential backoff retry mechanism
+    
     for attempt in range(retries):
         try:
-            response = requests.post(url, headers=headers, json=data, timeout=30)  # Adjusted timeout
-            response.raise_for_status()  # Raise HTTPError for bad responses
+            response = requests.post(url, headers=headers, json=data, timeout=30)  
+            response.raise_for_status()  
             return response.json().get('choices', [{}])[0].get('message', {}).get('content', "No explanation provided.")
         
         except requests.exceptions.Timeout as e:
             if attempt < retries - 1:
-                wait_time = initial_delay * (2 ** attempt)  # Exponential backoff
+                wait_time = initial_delay * (2 ** attempt)  
                 logging.warning(f"Timeout error. Retrying in {wait_time} seconds... (Attempt {attempt + 1}/{retries})")
                 time.sleep(wait_time)
             else:
@@ -66,18 +83,15 @@ def get_image_explanation(base64_image, retries=5, initial_delay=2):
 
 
 def generate_system_prompt(document_content):
-    """
-    Generate a system prompt based on the expertise, tone, and voice needed 
-    to summarize the document content.
-    """
-    headers = get_headers()
+    headers = HEADERS
+    preprocessed_content = preprocess_text(document_content)
     data = {
         "model": model,
         "messages": [
             {"role": "system", "content": "You are a helpful assistant that serves the task given."},
             {"role": "user", "content":
              f"""You are provided with a document. Based on its content, extract and identify the following details:
-            Document_content: {document_content}
+            Document_content: {preprocessed_content}
 
             1. **Domain**: Identify the specific domain or field of expertise the document is focused on. Examples include technology, finance, healthcare, law, etc.
             2. **Subject Matter**: Determine the main topic or focus of the document. This could be a detailed concept, theory, or subject within the domain.
@@ -117,7 +131,7 @@ def generate_system_prompt(document_content):
 
             Generate a response filling the template with appropriate details based on the content of the document and return the filled in template as response."""}
         ],
-        "temperature": 0.5  # Adjust as needed to generate creative but relevant system prompts
+        "temperature": 0.5  
     }
 
     try:
@@ -137,21 +151,16 @@ def generate_system_prompt(document_content):
 
 
 def summarize_page(page_text, previous_summary, page_number, system_prompt, max_retries=5, base_delay=1, max_delay=32):
-    """
-    Summarize a single page's text using LLM, and generate a system prompt based on the document content.
-    Implements exponential backoff with jitter to handle timeout errors.
-    """
-    headers = get_headers()
-    
-    # Generate the system prompt based on the document content
-    system_prompt = system_prompt
+    headers = HEADERS
+    preprocessed_page_text = preprocess_text(page_text)
+    preprocessed_previous_summary = preprocess_text(previous_summary)
     
     prompt_message = (
         f"Please rewrite the following page content from (Page {page_number}) along with context from the previous page summary "
         f"to make them concise and well-structured. Maintain proper listing and referencing of the contents if present."
         f"Do not add any new information or make assumptions. Keep the meaning accurate and the language clear.\n\n"
-        f"Previous page summary: {previous_summary}\n\n"
-        f"Current page content:\n{page_text}\n"
+        f"Previous page summary: {preprocessed_previous_summary}\n\n"
+        f"Current page content:\n{preprocessed_page_text}\n"
     )
 
     data = {
@@ -173,6 +182,7 @@ def summarize_page(page_text, previous_summary, page_number, system_prompt, max_
                 timeout=50
             )
             response.raise_for_status()
+            logging.info(f"Summary retrieved for page {page_number} at {time.strftime('%Y-%m-%d %H:%M:%S')}")
             return response.json().get('choices', [{}])[0].get('message', {}).get('content', "No summary provided.").strip()
         
         except requests.exceptions.RequestException as e:
@@ -181,64 +191,138 @@ def summarize_page(page_text, previous_summary, page_number, system_prompt, max_
                 logging.error(f"Error summarizing page {page_number}: {e}")
                 return f"Error: Unable to summarize page {page_number} due to network issues or API error."
 
-            # Calculate exponential backoff with jitter
-            delay = min(max_delay, base_delay * (2 ** attempt))  # Exponential backoff
-            jitter = random.uniform(0, delay)  # Add jitter for randomness
+            
+            delay = min(max_delay, base_delay * (2 ** attempt))  
+            jitter = random.uniform(0, delay)  
             logging.warning(f"Retrying in {jitter:.2f} seconds (attempt {attempt}) due to error: {e}")
             time.sleep(jitter)
 
 
 def ask_question(documents, question, chat_history):
-    """Answer a question based on the full text, summarized content of multiple PDFs, and chat history."""
-    combined_content = ""
+    headers = HEADERS
+    preprocessed_question = preprocess_text(question)
+    
+    def calculate_token_count(text):
+        return len(text.split())  
+    
+    total_tokens = calculate_token_count(preprocessed_question)
 
-    # Combine document full texts, summaries, and image analyses with document names
+    # Calculate token count for all pages, removing the token limit check
     for doc_name, doc_data in documents.items():
-        combined_content += f"\nDocument: {doc_name}\n"  # Add document name for clarity
         for page in doc_data["pages"]:
-            page_summary = page['text_summary']
-            page_full_text = page.get('full_text', 'No text available')  # Include full text
+            total_tokens += calculate_token_count(page.get('text_summary', 'No summary available'))
+            total_tokens += calculate_token_count(page.get('full_text', 'No full text available'))
 
-            image_explanation = "\n".join(
-                f"Page {img['page_number']}: {img['explanation']}" for img in page["image_analysis"]
-            ) if page["image_analysis"] else "No image analysis."
+    # No token limit check, always run relevance checking
+    def check_page_relevance(doc_name, page):
+        page_summary = page.get('text_summary', 'No summary available') 
+        page_full_text = page.get('full_text', 'No full text available') 
+        image_explanation = "\n".join(
+            f"Page {img['page_number']}: {img['explanation']}" for img in page.get("image_analysis", [])
+        ) or "No image analysis."
+        
+        relevance_check_prompt = f"""
+        You are an assistant that checks if a specific document page contains an answer to the user's question.
+        Here's the summary, full text, and image analysis of a page:
 
-            combined_content += (
-                f"Page {page['page_number']}\n"
-                f"Full Text: {page_full_text}\n"
-                f"Summary: {page_summary}\n"
-                f"Image Analysis: {image_explanation}\n\n"
+        Document: {doc_name}, Page {page['page_number']}
+        Summary: {page_summary}
+        Image Analysis: {image_explanation}
+
+        Based on the content above, answer this question: {preprocessed_question}
+
+        Respond with "yes" if this page contains relevant information, otherwise respond with "no".
+        """
+
+        relevance_data = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": "You are an assistant that determines if a page is relevant to a question."},
+                {"role": "user", "content": relevance_check_prompt}
+            ],
+            "temperature": 0.0
+        }
+
+        try:
+            response = requests.post(
+                f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
+                headers=headers,
+                json=relevance_data,
+                timeout=60  
             )
+            response.raise_for_status()
+            relevance_answer = response.json().get('choices', [{}])[0].get('message', {}).get('content', "no").strip().lower()
 
-    # Format the chat history into a conversation format
+            if relevance_answer == "yes":
+                return {
+                    "doc_name": doc_name,
+                    "page_number": page["page_number"],
+                    "text_summary": page_summary,
+                    "full_text": page_full_text,
+                    "image_explanation": image_explanation
+                }
+
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error checking relevance of page {page['page_number']} in '{doc_name}': {e}")
+            return None
+
+    
+    relevant_pages = []
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future_to_page = {
+            executor.submit(check_page_relevance, doc_name, page): (doc_name, page)
+            for doc_name, doc_data in documents.items()
+            for page in doc_data["pages"]
+        }
+
+        for future in concurrent.futures.as_completed(future_to_page):
+            result = future.result()
+            if result:
+                relevant_pages.append(result)
+
+    
+    if not relevant_pages:
+        return "The content of the provided documents does not contain an answer to your question."
+
+    combined_relevant_content = ""
+    for page in relevant_pages:
+        combined_relevant_content += (
+            f"\nDocument: {page['doc_name']}, Page {page['page_number']}\n"
+            f"Summary: {page['text_summary']}\n"
+            f"Full Text: {page['full_text']}\n"
+            f"Image Analysis: {page['image_explanation']}\n"
+        )
+
     conversation_history = "".join(
-        f"User: {chat['question']}\nAssistant: {chat['answer']}\n" for chat in chat_history
+        f"User: {preprocess_text(chat['question'])}\nAssistant: {preprocess_text(chat['answer'])}\n"
+        for chat in chat_history
     )
 
-    # Prepare the prompt message with document name references
     prompt_message = (
         f"""
-    You are given the following content from multiple documents:
+        You are given the following relevant content from multiple documents:
 
-    ---
-    {combined_content}
-    ---
-    Previous responses over the current chat session: {conversation_history}
+        ---
+        {combined_relevant_content}
+        ---
 
-    Answer the following question based **strictly and only** on the factual information provided in the content above. 
-    Carefully verify all details from the content and do not generate any information that is not explicitly mentioned in it.
-    If the answer cannot be determined from the content, explicitly state that the information is not available.
-    Ensure the response is clearly formatted for readability.
+        Previous responses over the current chat session: {conversation_history}
 
-    Include references to the document name and page number(s) where the information was found.
+        Answer the following question based **strictly and only** on the factual information provided in the content above. 
+        Carefully verify all details from the content and do not generate any information that is not explicitly mentioned in it.
+        If the answer cannot be determined from the content, explicitly state that the information is not available.
+        Ensure the response is clearly formatted for readability.
 
-    Question: {question}
-    """
+        Include references to the document name and page number(s) where the information was found.
+
+        Question: {preprocessed_question}
+        """
     )
 
-    headers = get_headers()
-
-    data = {
+    prompt_tokens = calculate_token_count(prompt_message)  # Update token counting function
+    logging.error(prompt_tokens)
+    
+    final_data = {
         "model": model,
         "messages": [
             {"role": "system", "content": "You are an assistant that answers questions based only on provided knowledge base."},
@@ -251,13 +335,14 @@ def ask_question(documents, question, chat_history):
         response = requests.post(
             f"{azure_endpoint}/openai/deployments/{model}/chat/completions?api-version={api_version}",
             headers=headers,
-            json=data,
-            timeout=60  # Add timeout for API request
+            json=final_data,
+            timeout=60  
         )
-        response.raise_for_status()  # Raise HTTPError for bad responses
+        response.raise_for_status()
         return response.json().get('choices', [{}])[0].get('message', {}).get('content', "No answer provided.").strip()
 
     except requests.exceptions.RequestException as e:
-        logging.error(f"Error answering question '{question}': {e}")
-        raise Exception(f"Unable to answer the question due to network issues or API error.")
-
+        if e.response:
+            logging.error(f"Error {e.response.status_code} while answering question '{question}': {e}")
+        else:
+            logging.error(f"Error answering question '{question}': {e}")
