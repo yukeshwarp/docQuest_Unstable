@@ -222,16 +222,15 @@ def ask_question(documents, question, chat_history):
         ) or "No image analysis."
         
         relevance_check_prompt = f"""
-        You are an assistant that checks if a specific document page contains an answer to the user's question.
-        Here's the summary, full text, and image analysis of a page:
+        Here's the full text and image analysis of a page:
 
         Document: {doc_name}, Page {page['page_number']}
-        Summary: {page_summary}
+        Full Text: {page_full_text}
         Image Analysis: {image_explanation}
 
-        Based on the content above, answer this question: {preprocessed_question}
+        Question asked by user: {preprocessed_question}
 
-        Respond with "yes" if this page contains relevant information, otherwise respond with "no".
+        Respond with "yes" if this page contains any relevant information related to the user's question, even if only a small part of the page has relevant content. Otherwise, respond with "no".
         """
 
         relevance_data = {
@@ -310,7 +309,6 @@ def ask_question(documents, question, chat_history):
 
         Answer the following question based **strictly and only** on the factual information provided in the content above. 
         Carefully verify all details from the content and do not generate any information that is not explicitly mentioned in it.
-        If the answer cannot be determined from the content, explicitly state that the information is not available.
         Ensure the response is clearly formatted for readability.
 
         Include references to the document name and page number(s) where the information was found.
