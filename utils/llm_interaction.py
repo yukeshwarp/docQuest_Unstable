@@ -337,7 +337,7 @@ def ask_question(documents, question, chat_history):
             timeout=60  
         )
         response.raise_for_status()
-        return response.json().get('choices', [{}])[0].get('message', {}).get('content', "No answer provided.").strip()
+        return response.json().get('choices', [{}])[0].get('message', {}).get('content', "No answer provided.").strip(), prompt_tokens
 
     except requests.exceptions.RequestException as e:
         if e.response:
