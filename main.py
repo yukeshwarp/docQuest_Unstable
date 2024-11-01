@@ -8,12 +8,12 @@ import io
 from docx import Document
 import tiktoken
 
+# Function to count tokens
 def count_tokens(text, model="gpt-4o"):
     encoding = tiktoken.encoding_for_model(model)
     tokens = encoding.encode(text)
     return len(tokens)
 
-doc_token = 0
 # Initialize session state
 if 'documents' not in st.session_state:
     st.session_state.documents = {}
@@ -21,6 +21,8 @@ if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 if 'uploaded_files' not in st.session_state:
     st.session_state.uploaded_files = []
+if 'doc_token' not in st.session_state:
+    st.session_state.doc_token = 0
 
 # Handle user question
 def handle_question(prompt):
@@ -44,6 +46,7 @@ def reset_session():
     st.session_state.documents = {}
     st.session_state.chat_history = []
     st.session_state.uploaded_files = []
+    st.session_state.doc_token = 0
 
 # Function to display chat history
 def display_chat():
@@ -123,7 +126,7 @@ with st.sidebar:
                         uploaded_file = future_to_file[future]
                         try:
                             document_data = future.result()
-                            doc_token += count_tokens(str(document_data))
+                            st.session_state.doc_token += count_tokens(str(document_data))
                             st.session_state.documents[uploaded_file.name] = document_data
                             st.success(f"{uploaded_file.name} processed successfully!")
                         except Exception as e:
@@ -131,7 +134,7 @@ with st.sidebar:
 
                         progress_bar.progress((i + 1) / total_files)
 
-            st.sidebar.write(f"Total document tokens: {doc_token}")
+            st.sidebar.write(f"Total document tokens: {st.session_state.doc_token}")
             progress_text.text("Processing complete.")
             progress_bar.empty()
 
