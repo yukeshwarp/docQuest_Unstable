@@ -5,7 +5,6 @@ from utils.llm_interaction import ask_question
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import io
-import tiktoken  
 from docx import Document
 
 # Initialize session state
@@ -16,33 +15,18 @@ if 'chat_history' not in st.session_state:
 if 'uploaded_files' not in st.session_state:
     st.session_state.uploaded_files = []
 
-# Function to count tokens
-def count_tokens(text, model="gpt-4o"):
-    encoding = tiktoken.encoding_for_model(model)
-    tokens = encoding.encode(text)
-    return len(tokens)
-
 # Handle user question
 def handle_question(prompt):
     if prompt:
         try:
-            input_tokens = count_tokens(prompt)
-            document_tokens = count_tokens(json.dumps(st.session_state.documents))
-            total_input_tokens = input_tokens + document_tokens
-            st.sidebar.write(f"Total cur Input Tokens: {total_input_tokens}")
-            
             with st.spinner('Thinking...'):
-                answer = ask_question(
+                answer, tot_tokens = ask_question(
                     st.session_state.documents, prompt, st.session_state.chat_history
                 )
             
-            output_tokens = count_tokens(answer)
-
             st.session_state.chat_history.append({
                 "question": prompt,
-                "answer": answer,
-                "input_tokens": total_input_tokens,
-                "output_tokens": output_tokens
+                "answer": f"{answer}\nTotal tokens: {tot_tokens}"
             })
 
         except Exception as e:
@@ -61,12 +45,12 @@ def display_chat():
             user_message = f"""
             <div style='padding:10px; border-radius:10px; margin:5px 0; text-align:right;'> 
             {chat['question']}
-            <small style='color:grey;'>Tokens: {chat['input_tokens']}</small></div>
+            </div>
             """
             assistant_message = f"""
             <div style='padding:10px; border-radius:10px; margin:5px 0; text-align:left;'> 
             {chat['answer']}
-            <small style='color:grey;'>Tokens: {chat['output_tokens']}</small></div>
+            </div>
             """
             st.markdown(user_message, unsafe_allow_html=True)
             st.markdown(assistant_message, unsafe_allow_html=True)
@@ -74,9 +58,7 @@ def display_chat():
             # Prepare content for download
             chat_content = {
                 "question": chat["question"],
-                "answer": chat["answer"],
-                "input_tokens": chat["input_tokens"],
-                "output_tokens": chat["output_tokens"]
+                "answer": chat["answer"]
             }
 
             # Generate Word document for download
@@ -85,8 +67,6 @@ def display_chat():
                 doc.add_heading('Chat Response', 0)
                 doc.add_paragraph(f"Question: {content['question']}")
                 doc.add_paragraph(f"Answer: {content['answer']}")
-                doc.add_paragraph(f"Input Tokens: {content['input_tokens']}")
-                doc.add_paragraph(f"Output Tokens: {content['output_tokens']}")
                 return doc
 
             # Generate the Word document in memory
@@ -168,9 +148,3 @@ if st.session_state.documents:
 
 # Display the chat history
 display_chat()
-
-# Token usage summary
-total_input_tokens = sum(chat["input_tokens"] for chat in st.session_state.chat_history)
-total_output_tokens = sum(chat["output_tokens"] for chat in st.session_state.chat_history)
-st.sidebar.write(f"Total Input Tokens: {total_input_tokens}")
-st.sidebar.write(f"Total Output Tokens: {total_output_tokens}")
