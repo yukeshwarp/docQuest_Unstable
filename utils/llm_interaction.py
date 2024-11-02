@@ -261,12 +261,12 @@ def ask_question(documents, question, chat_history):
                     "full_text": page_full_text,
                     "image_explanation": image_explanation
                 }
+            return None  # Explicitly return None if relevance is "no"
 
         except requests.exceptions.RequestException as e:
             logging.error(f"Error checking relevance of page {page['page_number']} in '{doc_name}': {e}")
             return None
 
-    
     relevant_pages = []
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future_to_page = {
@@ -280,9 +280,8 @@ def ask_question(documents, question, chat_history):
             if result:
                 relevant_pages.append(result)
 
-    
     if not relevant_pages:
-        return "The content of the provided documents does not contain an answer to your question."
+        return "The content of the provided documents does not contain an answer to your question.", total_tokens
 
     combined_relevant_content = ""
     for page in relevant_pages:
@@ -317,8 +316,7 @@ def ask_question(documents, question, chat_history):
         """
     )
 
-    prompt_tokens = calculate_token_count(prompt_message)  # Update token counting function
-    logging.error(prompt_tokens)
+    prompt_tokens = calculate_token_count(prompt_message)
     
     final_data = {
         "model": model,
@@ -344,3 +342,4 @@ def ask_question(documents, question, chat_history):
             logging.error(f"Error {e.response.status_code} while answering question '{question}': {e}")
         else:
             logging.error(f"Error answering question '{question}': {e}")
+        return "An error occurred while processing your question.", total_tokens
