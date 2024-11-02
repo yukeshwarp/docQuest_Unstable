@@ -291,6 +291,19 @@ def ask_question(documents, question, chat_history):
             f"Image Analysis: {page['image_explanation']}\n"
         )
 
+    tok = count_tokens(combined_relevant_content)
+    if tok>120000:
+            combined_relevant_content = ""
+            for page in relevant_pages:
+                    combined_relevant_content += (
+            f"\nDocument: {page['doc_name']}, Page {page['page_number']}\n"
+            f"Page summary: {page['text_summary']}\n"
+            f"Image Analysis: {page['image_explanation']}\n"
+        )
+                    tok = count_tokens(combined_relevant_content)
+                    if tok>124000:
+                            logging.error(f"The relevant content exceeds the context of the LLM {tok}")
+    
     conversation_history = "".join(
         f"User: {preprocess_text(chat['question'])}\nAssistant: {preprocess_text(chat['answer'])}\n"
         for chat in chat_history
@@ -316,7 +329,7 @@ def ask_question(documents, question, chat_history):
         """
     )
 
-    prompt_tokens = calculate_token_count(prompt_message)
+    prompt_tokens = count_tokens(prompt_message)
     
     final_data = {
         "model": model,
