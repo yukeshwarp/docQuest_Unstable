@@ -222,10 +222,11 @@ def ask_question(documents, question, chat_history):
         ) or "No image analysis."
         
         relevance_check_prompt = f"""
-        Here's the full text and image analysis of a page:
+        Here's the full text, summary and image analysis of a page:
 
         Document: {doc_name}, Page {page['page_number']}
         Full Text: {page_full_text}
+        Summary of the page: {page_summary}
         Image Analysis: {image_explanation}
 
         Question asked by user: {preprocessed_question}
@@ -287,7 +288,6 @@ def ask_question(documents, question, chat_history):
     for page in relevant_pages:
         combined_relevant_content += (
             f"\nDocument: {page['doc_name']}, Page {page['page_number']}\n"
-            f"Summary: {page['text_summary']}\n"
             f"Full Text: {page['full_text']}\n"
             f"Image Analysis: {page['image_explanation']}\n"
         )
